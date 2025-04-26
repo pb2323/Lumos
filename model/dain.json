@@ -1,0 +1,12 @@
+{
+  "project-id": "",
+  "api-key": "sk_agent_201_0_5UQSvKzmLy7bYgXCYjsVPbt4Vz1gGKqsVSjp8RZ14SidW47QNC6fvGsjb7kdgpeTG1fCBFpcNc7b5wqX3CpwRAdT",
+  "main-file": "src/index.ts",
+  "static-dir": "static",
+  "out-dir": "dist",
+  "environment": "development",
+  "version": "1.0.0",
+  "tunnel-base-url": "wss:///tunnel.dain-local.com",
+  "deployment-id": "",
+  "service-id": ""
+}

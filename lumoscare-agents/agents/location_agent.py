@@ -4,8 +4,10 @@ from uagents.setup import fund_agent_if_low
 import json
 import os
 from dotenv import load_dotenv
-from .protocols import location_protocol, LocationUpdateMessage
 from datetime import datetime
+from agents.protocols import location_protocol, LocationUpdateMessage, alert_protocol, AlertMessage
+from agents.notification_agent import notification_agent  # Import it
+
 
 # Load environment variables
 load_dotenv()
@@ -88,6 +90,7 @@ async def handle_location_update(ctx: Context, sender: str, msg: LocationUpdateM
     if within_safe_zone:
         print(f"[LocationAgent] ✅ Patient {patient_id} is within safe zone: {zone_name}")
         ctx.logger.info(f"Patient {patient_id} is within safe zone: {zone_name}")
+
     else:
         print(f"[LocationAgent] ⚠️ ALERT: Patient {patient_id} has left all safe zones!")
         ctx.logger.warning(f"ALERT: Patient {patient_id} has left all safe zones!")
@@ -105,6 +108,20 @@ async def handle_location_update(ctx: Context, sender: str, msg: LocationUpdateM
         # For now, we'll just log it
         print(f"[LocationAgent] Alert data: {json.dumps(alert_data, indent=2)}")
         ctx.logger.info(f"Alert data: {json.dumps(alert_data)}")
+        # Send alert to NotificationAgent
+        alert = AlertMessage(
+            patient_id=patient_id,
+            message=f"Patient has left all safe zones. Current coordinates: {latitude}, {longitude}",
+            priority="high",
+            timestamp=datetime.now().isoformat()
+        )
+
+        await ctx.send(
+            notification_agent.address,  # send to NotificationAgent
+            alert
+        )
+        print(f"[LocationAgent] 🚀 Sent alert to NotificationAgent!")
+
 
 # Register the protocol
 location_agent.include(location_protocol)
