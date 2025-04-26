@@ -4,44 +4,64 @@ import { Surface, Text, Card, Button, Avatar, Badge, IconButton } from 'react-na
 import { theme } from '../utils/theme';
 import { useAuth } from '../context/AuthContext';
 import { usePeople } from '../context/PeopleContext';
+import { useSafeZones } from '../context/SafeZonesContext';
+import { useAlerts } from '../context/AlertsContext';
 
 const DashboardScreen = ({ navigation }) => {
   const { user } = useAuth();
   const { people } = usePeople();
+  const { safeZones } = useSafeZones();
+  const { alerts, resolveAlert } = useAlerts();
   
   const patientName = user?.patients?.[0]?.name || 'No patient added';
   
-  // Mock data for our dashboard
-  const mockData = {
-    location: 'Home',
-    lastActivity: '10 minutes ago',
-    alerts: [
-      { id: '1', type: 'zone', message: 'Left safe zone: Home', time: '15 minutes ago', priority: 'high' },
-      { id: '2', type: 'reminder', message: 'Missed medication: Aricept', time: '2 hours ago', priority: 'medium' },
-    ],
-  };
+  // Find active safe zone
+  const currentZone = safeZones.find(zone => zone.active) || null;
+  
+  // Get recent active alerts (up to 2)
+  const recentAlerts = alerts
+    .filter(alert => !alert.resolved)
+    .sort((a, b) => new Date(b.created) - new Date(a.created))
+    .slice(0, 2);
   
   const renderPriorityBadge = (priority) => {
     let color;
     switch (priority) {
       case 'high':
-        color = '#CF6679'; // Error color
-        break;
+        return <Badge style={[styles.priorityBadge, { backgroundColor: theme.colors.error }]} size={12} />;
       case 'medium':
-        color = theme.colors.accent;
-        break;
+        return <Badge style={[styles.priorityBadge, { backgroundColor: theme.colors.accent }]} size={12} />;
       default:
-        color = theme.colors.secondary;
+        return <Badge style={[styles.priorityBadge, { backgroundColor: theme.colors.secondary }]} size={12} />;
     }
-    
-    return (
-      <Badge
-        style={[styles.priorityBadge, { backgroundColor: color }]}
-        size={12}
-      />
-    );
   };
-
+  
+  // Format time string
+  const formatTime = (dateString) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInMs = now - date;
+    const diffInMins = Math.floor(diffInMs / 60000);
+    const diffInHours = Math.floor(diffInMins / 60);
+    const diffInDays = Math.floor(diffInHours / 24);
+    
+    if (diffInMins < 1) return 'Just now';
+    if (diffInMins < 60) return `${diffInMins} minute${diffInMins !== 1 ? 's' : ''} ago`;
+    if (diffInHours < 24) return `${diffInHours} hour${diffInHours !== 1 ? 's' : ''} ago`;
+    if (diffInDays < 7) return `${diffInDays} day${diffInDays !== 1 ? 's' : ''} ago`;
+    
+    return date.toLocaleDateString();
+  };
+  
+  // Handle resolving an alert
+  const handleResolveAlert = async (alertId) => {
+    try {
+      await resolveAlert(alertId, 'Marked as resolved from Dashboard');
+    } catch (error) {
+      console.error('Error resolving alert:', error);
+    }
+  };
+  
   return (
     <ScrollView style={styles.container}>
       <Surface style={styles.headerCard}>
@@ -54,10 +74,12 @@ const DashboardScreen = ({ navigation }) => {
           <View style={styles.headerInfo}>
             <Text style={styles.patientName}>{patientName}</Text>
             <View style={styles.statusContainer}>
-              <View style={styles.statusDot} />
-              <Text style={styles.statusText}>Current location: {mockData.location}</Text>
+              <View style={[styles.statusDot, { backgroundColor: currentZone ? theme.colors.secondary : theme.colors.disabled }]} />
+              <Text style={styles.statusText}>
+                Current location: {currentZone ? currentZone.name : 'Unknown'}
+              </Text>
             </View>
-            <Text style={styles.lastActivity}>Last activity: {mockData.lastActivity}</Text>
+            <Text style={styles.lastActivity}>Last activity: 10 minutes ago</Text>
           </View>
         </View>
         <View style={styles.quickActions}>
@@ -72,12 +94,12 @@ const DashboardScreen = ({ navigation }) => {
           </Button>
           <Button
             mode="contained"
-            onPress={() => navigation.navigate('SafeZones')}
+            onPress={() => navigation.navigate('AddSafeZone')}
             style={[styles.actionButton, { backgroundColor: theme.colors.secondary }]}
             labelStyle={styles.actionButtonLabel}
             compact
           >
-            Safe Zones
+            Add Zone
           </Button>
         </View>
       </Surface>
@@ -93,26 +115,34 @@ const DashboardScreen = ({ navigation }) => {
           />
         </View>
         
-        {mockData.alerts.map(alert => (
-          <Card key={alert.id} style={styles.alertCard}>
-            <Card.Content style={styles.alertContent}>
-              <View style={styles.alertHeader}>
-                {renderPriorityBadge(alert.priority)}
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.alertMessage}>{alert.message}</Text>
-                  <Text style={styles.alertTime}>{alert.time}</Text>
+        {recentAlerts.length > 0 ? (
+          recentAlerts.map(alert => (
+            <Card key={alert.id} style={styles.alertCard}>
+              <Card.Content style={styles.alertContent}>
+                <View style={styles.alertHeader}>
+                  {renderPriorityBadge(alert.priority)}
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.alertMessage}>{alert.message}</Text>
+                    <Text style={styles.alertTime}>{formatTime(alert.created)}</Text>
+                  </View>
                 </View>
-              </View>
-              <Button 
-                mode="text" 
-                compact
-                onPress={() => {}}
-              >
-                Resolve
-              </Button>
+                <Button 
+                  mode="text" 
+                  compact
+                  onPress={() => handleResolveAlert(alert.id)}
+                >
+                  Resolve
+                </Button>
+              </Card.Content>
+            </Card>
+          ))
+        ) : (
+          <Card style={styles.emptyCard}>
+            <Card.Content>
+              <Text style={styles.emptyCardText}>No active alerts right now</Text>
             </Card.Content>
           </Card>
-        ))}
+        )}
       </View>
       
       <View style={styles.section}>
@@ -156,6 +186,53 @@ const DashboardScreen = ({ navigation }) => {
             />
             <Text style={[styles.personName, { color: theme.colors.primary }]}>Add Person</Text>
             <Text style={styles.personRelationship}></Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+      
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Safe Zones</Text>
+          <IconButton
+            icon="arrow-right"
+            color={theme.colors.text}
+            size={20}
+            onPress={() => navigation.navigate('Safe Zones')}
+          />
+        </View>
+        
+        <View style={styles.safeZonesContainer}>
+          {safeZones.slice(0, 2).map((zone) => (
+            <TouchableOpacity
+              key={zone.id}
+              style={styles.safeZoneCard}
+              onPress={() => navigation.navigate('SafeZoneDetail', { zoneId: zone.id })}
+            >
+              <View style={styles.safeZoneInfo}>
+                <View style={styles.safeZoneNameContainer}>
+                  <View style={[styles.activeIndicator, { backgroundColor: zone.active ? theme.colors.secondary : theme.colors.disabled }]} />
+                  <Text style={styles.safeZoneName}>{zone.name}</Text>
+                </View>
+                <Text style={styles.safeZoneRadius}>Radius: {zone.radius}m</Text>
+              </View>
+              <IconButton
+                icon="chevron-right"
+                size={20}
+                color={theme.colors.text}
+              />
+            </TouchableOpacity>
+          ))}
+          
+          <TouchableOpacity
+            style={[styles.safeZoneCard, styles.addSafeZoneCard]}
+            onPress={() => navigation.navigate('AddSafeZone')}
+          >
+            <Text style={[styles.safeZoneName, { color: theme.colors.primary }]}>Add New Safe Zone</Text>
+            <IconButton
+              icon="plus"
+              size={20}
+              color={theme.colors.primary}
+            />
           </TouchableOpacity>
         </View>
       </View>
@@ -219,7 +296,6 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: theme.colors.secondary,
     marginRight: 6,
   },
   statusText: {
@@ -284,6 +360,15 @@ const styles = StyleSheet.create({
     fontSize: theme.fonts.sizes.small,
     color: theme.colors.textSecondary,
   },
+  emptyCard: {
+    backgroundColor: theme.colors.surface,
+    paddingVertical: theme.spacing.medium,
+  },
+  emptyCardText: {
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
   recognizedPeopleGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -309,6 +394,47 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.primary,
     borderStyle: 'dashed',
+  },
+  safeZonesContainer: {
+    marginTop: theme.spacing.small,
+  },
+  safeZoneCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.roundness,
+    padding: theme.spacing.medium,
+    marginBottom: theme.spacing.small,
+  },
+  safeZoneInfo: {
+    flex: 1,
+  },
+  safeZoneNameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  activeIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  safeZoneName: {
+    fontSize: theme.fonts.sizes.body,
+    fontWeight: 'bold',
+    color: theme.colors.text,
+  },
+  safeZoneRadius: {
+    fontSize: theme.fonts.sizes.small,
+    color: theme.colors.textSecondary,
+  },
+  addSafeZoneCard: {
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+    borderStyle: 'dashed',
+    backgroundColor: 'transparent',
   },
   journalCard: {
     backgroundColor: theme.colors.surface,

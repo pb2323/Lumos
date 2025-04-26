@@ -1,4 +1,5 @@
 import React from 'react';
+import { View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useTheme } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -6,16 +7,24 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 // Screens
 import DashboardScreen from '../screens/DashboardScreen';
 import PeopleScreen from '../screens/PeopleScreen';
+import SafeZonesScreen from '../screens/SafeZonesScreen';
+import AlertsScreen from '../screens/AlertsScreen';
+import SettingsScreen from '../screens/SettingsScreen';
 
-// Placeholder screens (we'll implement these later)
-import SafeZonesScreen from '../screens/PlaceholderScreen';
-import AlertsScreen from '../screens/PlaceholderScreen';
-import SettingsScreen from '../screens/PlaceholderScreen';
+// Contexts
+import { useAlerts } from '../context/AlertsContext';
+
+// Components
+import TabBadge from '../components/TabBadge';
 
 const Tab = createBottomTabNavigator();
 
 const MainTabNavigator = () => {
   const theme = useTheme();
+  const { getUnresolvedCount } = useAlerts();
+  
+  // Get the count of unresolved alerts
+  const unresolvedCount = getUnresolvedCount();
 
   return (
     <Tab.Navigator
@@ -63,31 +72,34 @@ const MainTabNavigator = () => {
         name="Safe Zones"
         component={SafeZonesScreen}
         options={{
-          tabBarIcon: ({ color, size }) => (
-            <Icon name="map-marker-radius" color={color} size={size} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="Alerts"
-        component={AlertsScreen}
-        options={{
-          tabBarIcon: ({ color, size }) => (
-            <Icon name="bell" color={color} size={size} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="Settings"
-        component={SettingsScreen}
-        options={{
-          tabBarIcon: ({ color, size }) => (
-            <Icon name="cog" color={color} size={size} />
-          ),
-        }}
-      />
-    </Tab.Navigator>
-  );
-};
-
-export default MainTabNavigator;
+            tabBarIcon: ({ color, size }) => (
+                <Icon name="map-marker-radius" color={color} size={size} />
+              ),
+            }}
+          />
+          <Tab.Screen
+            name="Alerts"
+            component={AlertsScreen}
+            options={{
+              tabBarIcon: ({ color, size }) => (
+                <View>
+                  <Icon name="bell" color={color} size={size} />
+                  <TabBadge count={unresolvedCount} />
+                </View>
+              ),
+            }}
+          />
+          <Tab.Screen
+            name="Settings"
+            component={SettingsScreen}
+            options={{
+              tabBarIcon: ({ color, size }) => (
+                <Icon name="cog" color={color} size={size} />
+              ),
+            }}
+          />
+        </Tab.Navigator>
+      );
+    };
+    
+    export default MainTabNavigator;
