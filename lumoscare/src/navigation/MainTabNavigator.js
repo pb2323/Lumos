@@ -72,34 +72,34 @@ const MainTabNavigator = () => {
         name="Safe Zones"
         component={SafeZonesScreen}
         options={{
-            tabBarIcon: ({ color, size }) => (
-                <Icon name="map-marker-radius" color={color} size={size} />
-              ),
-            }}
-          />
-          <Tab.Screen
-            name="Alerts"
-            component={AlertsScreen}
-            options={{
-              tabBarIcon: ({ color, size }) => (
-                <View>
-                  <Icon name="bell" color={color} size={size} />
-                  <TabBadge count={unresolvedCount} />
-                </View>
-              ),
-            }}
-          />
-          <Tab.Screen
-            name="Settings"
-            component={SettingsScreen}
-            options={{
-              tabBarIcon: ({ color, size }) => (
-                <Icon name="cog" color={color} size={size} />
-              ),
-            }}
-          />
-        </Tab.Navigator>
-      );
-    };
-    
-    export default MainTabNavigator;
+          tabBarIcon: ({ color, size }) => (
+            <Icon name="map-marker-radius" color={color} size={size} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Alerts"
+        component={AlertsScreen}
+        options={{
+          tabBarIcon: ({ color, size }) => (
+            <View>
+              <Icon name="bell" color={color} size={size} />
+              <TabBadge count={unresolvedCount} />
+            </View>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Settings"
+        component={SettingsScreen}
+        options={{
+          tabBarIcon: ({ color, size }) => (
+            <Icon name="cog" color={color} size={size} />
+          ),
+        }}
+      />
+    </Tab.Navigator>
+  );
+};
+
+export default MainTabNavigator;

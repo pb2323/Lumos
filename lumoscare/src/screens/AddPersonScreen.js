@@ -1,9 +1,12 @@
+// src/screens/AddPersonScreen.js
+
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, Modal } from 'react-native';
 import { TextInput, Button, Text, Surface, IconButton, HelperText } from 'react-native-paper';
 import * as ImagePicker from 'expo-image-picker';
 import { usePeople } from '../context/PeopleContext';
 import { theme } from '../utils/theme';
+import CameraHelper from '../components/CameraHelper';
 
 const AddPersonScreen = ({ navigation }) => {
   const { addPerson, loading } = usePeople();
@@ -12,6 +15,7 @@ const AddPersonScreen = ({ navigation }) => {
   const [notes, setNotes] = useState('');
   const [photo, setPhoto] = useState(null);
   const [errors, setErrors] = useState({});
+  const [showCamera, setShowCamera] = useState(false);
   
   // Pick an image from the gallery
   const pickImage = async () => {
@@ -34,24 +38,20 @@ const AddPersonScreen = ({ navigation }) => {
     }
   };
   
-  // Take a photo with the camera
-  const takePhoto = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    
-    if (status !== 'granted') {
-      Alert.alert('Permission Denied', 'Sorry, we need camera permissions to make this work!');
-      return;
-    }
-    
-    let result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.5,
-    });
-    
-    if (!result.canceled) {
-      setPhoto(result.assets[0].uri);
-    }
+  // Show camera for taking a photo
+  const openCamera = () => {
+    setShowCamera(true);
+  };
+  
+  // Handle photo captured from camera
+  const handleCapturedPhoto = (photoData) => {
+    setPhoto(photoData.uri);
+    setShowCamera(false);
+  };
+  
+  // Close camera without taking photo
+  const handleCloseCamera = () => {
+    setShowCamera(false);
   };
   
   // Validate form
@@ -74,12 +74,21 @@ const AddPersonScreen = ({ navigation }) => {
   const handleSubmit = async () => {
     if (validateForm()) {
       try {
-        await addPerson({
+        // Prepare person data
+        const personData = {
           name,
           relationship,
           notes,
           photoUrl: photo, // In a real app, we would upload this to a server
-        });
+        };
+        
+        // If we have a photo and it's for face recognition, convert to base64
+        if (photo) {
+          // In a real app, you would convert the photo to base64 here
+          // personData.faceData = base64encodedface...
+        }
+        
+        await addPerson(personData);
         
         Alert.alert(
           'Success',
@@ -93,102 +102,118 @@ const AddPersonScreen = ({ navigation }) => {
   };
   
   return (
-    <ScrollView style={styles.container}>
-      <Surface style={styles.card}>
-        <Text style={styles.title}>Add New Person</Text>
-        
-        <View style={styles.photoSection}>
-          <View style={styles.photoPlaceholder}>
-            {photo ? (
-              <View style={styles.photoContainer}>
-                <IconButton
-                  icon="close"
-                  color="#fff"
-                  size={20}
-                  style={styles.removePhotoButton}
-                  onPress={() => setPhoto(null)}
-                />
-              </View>
-            ) : (
-              <Text style={styles.photoPlaceholderText}>No Photo</Text>
-            )}
+    <View style={styles.container}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <Surface style={styles.card}>
+          <Text style={styles.title}>Add New Person</Text>
+          
+          <View style={styles.photoSection}>
+            <View style={styles.photoPlaceholder}>
+              {photo ? (
+                <View style={styles.photoContainer}>
+                  <Image source={{ uri: photo }} style={styles.photo} />
+                  <IconButton
+                    icon="close"
+                    color="#fff"
+                    size={20}
+                    style={styles.removePhotoButton}
+                    onPress={() => setPhoto(null)}
+                  />
+                </View>
+              ) : (
+                <Text style={styles.photoPlaceholderText}>No Photo</Text>
+              )}
+            </View>
+            
+            <View style={styles.photoButtons}>
+              <Button
+                mode="contained"
+                icon="camera"
+                onPress={openCamera}
+                style={[styles.photoButton, styles.cameraButton]}
+                labelStyle={styles.buttonLabel}
+              >
+                Camera
+              </Button>
+              <Button
+                mode="contained"
+                icon="image"
+                onPress={pickImage}
+                style={[styles.photoButton, styles.galleryButton]}
+                labelStyle={styles.buttonLabel}
+              >
+                Gallery
+              </Button>
+            </View>
+            
+            <Text style={styles.photoHelp}>
+              Adding a photo helps the system recognize this person.
+            </Text>
           </View>
           
-          <View style={styles.photoButtons}>
-            <Button
-              mode="contained"
-              icon="camera"
-              onPress={takePhoto}
-              style={[styles.photoButton, styles.cameraButton]}
-              labelStyle={styles.buttonLabel}
-            >
-              Camera
-            </Button>
-            <Button
-              mode="contained"
-              icon="image"
-              onPress={pickImage}
-              style={[styles.photoButton, styles.galleryButton]}
-              labelStyle={styles.buttonLabel}
-            >
-              Gallery
-            </Button>
-          </View>
+          <TextInput
+            label="Name *"
+            value={name}
+            onChangeText={setName}
+            style={styles.input}
+            theme={{ colors: { primary: theme.colors.primary } }}
+            error={!!errors.name}
+          />
+          {errors.name && (
+            <HelperText type="error" visible={true}>
+              {errors.name}
+            </HelperText>
+          )}
           
-          <Text style={styles.photoHelp}>
-            Adding a photo helps the system recognize this person.
-          </Text>
-        </View>
-        
-        <TextInput
-          label="Name *"
-          value={name}
-          onChangeText={setName}
-          style={styles.input}
-          theme={{ colors: { primary: theme.colors.primary } }}
-          error={!!errors.name}
+          <TextInput
+            label="Relationship *"
+            value={relationship}
+            onChangeText={setRelationship}
+            style={styles.input}
+            theme={{ colors: { primary: theme.colors.primary } }}
+            error={!!errors.relationship}
+          />
+          {errors.relationship && (
+            <HelperText type="error" visible={true}>
+              {errors.relationship}
+            </HelperText>
+          )}
+          
+          <TextInput
+            label="Notes / Conversation Context"
+            value={notes}
+            onChangeText={setNotes}
+            multiline
+            numberOfLines={4}
+            style={styles.input}
+            theme={{ colors: { primary: theme.colors.primary } }}
+          />
+          
+          <Button
+            mode="contained"
+            onPress={handleSubmit}
+            style={styles.saveButton}
+            loading={loading}
+            disabled={loading}
+          >
+            Save Person
+          </Button>
+        </Surface>
+      </ScrollView>
+      
+      {/* Camera Modal */}
+      <Modal
+        visible={showCamera}
+        animationType="slide"
+        onRequestClose={handleCloseCamera}
+      >
+        <CameraHelper
+          onCapture={handleCapturedPhoto}
+          onCancel={handleCloseCamera}
+          mode="faceRecognition"
         />
-        {errors.name && (
-          <HelperText type="error" visible={true}>
-            {errors.name}
-          </HelperText>
-        )}
-        
-        <TextInput
-          label="Relationship *"
-          value={relationship}
-          onChangeText={setRelationship}
-          style={styles.input}
-          theme={{ colors: { primary: theme.colors.primary } }}
-          error={!!errors.relationship}
-        />
-        {errors.relationship && (
-          <HelperText type="error" visible={true}>
-            {errors.relationship}
-          </HelperText>
-        )}
-        
-        <TextInput
-          label="Notes / Conversation Context"
-          value={notes}
-          onChangeText={setNotes}
-          multiline
-          numberOfLines={4}
-          style={styles.input}
-          theme={{ colors: { primary: theme.colors.primary } }}
-        />
-        
-        <Button
-          mode="contained"
-          onPress={handleSubmit}
-          style={styles.saveButton}
-          loading={loading}
-          disabled={loading}
-        >
-          Save Person
-        </Button>
-      </Surface>
-    </ScrollView>
+      </Modal>
+    </View>
   );
 };
 
@@ -197,8 +222,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
+  scrollContent: {
+    padding: theme.spacing.medium,
+  },
   card: {
-    margin: theme.spacing.medium,
     padding: theme.spacing.medium,
     borderRadius: theme.roundness,
     backgroundColor: theme.colors.surface,
@@ -222,6 +249,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: theme.spacing.medium,
+    overflow: 'hidden',
   },
   photoPlaceholderText: {
     color: theme.colors.textSecondary,
@@ -229,9 +257,12 @@ const styles = StyleSheet.create({
   photoContainer: {
     width: '100%',
     height: '100%',
-    borderRadius: 60,
-    backgroundColor: theme.colors.primary,
     position: 'relative',
+  },
+  photo: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 60,
   },
   removePhotoButton: {
     position: 'absolute',

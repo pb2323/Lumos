@@ -1,25 +1,17 @@
-// src/screens/LoginScreen.js
-
 import React, { useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Image } from 'react-native';
-import { TextInput, Button, Text, Surface, HelperText, Divider } from 'react-native-paper';
+import { View, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { TextInput, Button, Text, Surface, HelperText } from 'react-native-paper';
 import { theme } from '../utils/theme';
 import { useAuth } from '../context/AuthContext';
 
 const LoginScreen = ({ navigation }) => {
-  const { login, register, signInWithGoogle, loading, error } = useAuth();
+  const { login, register, loading, error } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showRegister, setShowRegister] = useState(false);
   
-  // Handle Google Sign In
-  const handleGoogleSignIn = async () => {
-    await signInWithGoogle();
-  };
-  
-  // Handle legacy email/password sign in
-  const handleEmailSignIn = async () => {
+  const handleSubmit = async () => {
     if (showRegister) {
       await register(name, email, password);
     } else {
@@ -55,25 +47,6 @@ const LoginScreen = ({ navigation }) => {
             </HelperText>
           ) : null}
           
-          {/* Google Sign In Button */}
-          <Button
-            mode="outlined"
-            icon="google"
-            onPress={handleGoogleSignIn}
-            style={styles.googleButton}
-            loading={loading}
-            disabled={loading}
-          >
-            Continue with Google
-          </Button>
-          
-          <View style={styles.dividerContainer}>
-            <Divider style={styles.divider} />
-            <Text style={styles.dividerText}>OR</Text>
-            <Divider style={styles.divider} />
-          </View>
-          
-          {/* Legacy Email/Password Form */}
           {showRegister && (
             <TextInput
               label="Full Name"
@@ -117,7 +90,7 @@ const LoginScreen = ({ navigation }) => {
           
           <Button
             mode="contained"
-            onPress={handleEmailSignIn}
+            onPress={handleSubmit}
             style={styles.button}
             loading={loading}
             disabled={loading}
@@ -184,25 +157,6 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.medium,
     color: theme.colors.text,
     textAlign: 'center',
-  },
-  googleButton: {
-    marginBottom: theme.spacing.medium,
-    borderColor: theme.colors.primary,
-    borderWidth: 1,
-  },
-  dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: theme.spacing.medium,
-  },
-  divider: {
-    flex: 1,
-    backgroundColor: theme.colors.border,
-  },
-  dividerText: {
-    color: theme.colors.textSecondary,
-    paddingHorizontal: theme.spacing.small,
-    fontSize: theme.fonts.sizes.small,
   },
   input: {
     marginBottom: theme.spacing.medium,

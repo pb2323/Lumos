@@ -1,190 +1,231 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+// src/services/SafeZonesService.js
 
-// Key for storing safe zones in AsyncStorage
-const SAFE_ZONES_STORAGE_KEY = 'lumoscare_safezones';
+import ApiService from './ApiService';
+import { ENDPOINTS } from '../config/api';
+import * as SafeZonesLocalService from './SafeZonesLocalService';
+import SyncManager from '../utils/SyncManager';
 
-// Get all safe zones for a specific patient
-export const getSafeZones = async (patientId) => {
-  try {
-    const zonesJSON = await AsyncStorage.getItem(SAFE_ZONES_STORAGE_KEY);
-    if (zonesJSON) {
-      const zones = JSON.parse(zonesJSON);
-      return zones.filter(zone => zone.patientId === patientId);
-    }
-    return [];
-  } catch (error) {
-    console.error('Error getting safe zones:', error);
-    return [];
-  }
-};
-
-// Get a specific safe zone by ID
-export const getSafeZoneById = async (zoneId) => {
-  try {
-    const zonesJSON = await AsyncStorage.getItem(SAFE_ZONES_STORAGE_KEY);
-    if (zonesJSON) {
-      const zones = JSON.parse(zonesJSON);
-      return zones.find(zone => zone.id === zoneId);
-    }
-    return null;
-  } catch (error) {
-    console.error('Error getting safe zone by ID:', error);
-    return null;
-  }
-};
-
-// Add a new safe zone
-export const addSafeZone = async (zoneData) => {
-  try {
-    // Generate a unique ID
-    const newZone = {
-      ...zoneData,
-      id: Math.random().toString(36).substring(2, 15),
-      createdAt: new Date().toISOString(),
-    };
-    
-    // Get existing zones
-    const zonesJSON = await AsyncStorage.getItem(SAFE_ZONES_STORAGE_KEY);
-    let zones = [];
-    if (zonesJSON) {
-      zones = JSON.parse(zonesJSON);
-    }
-    
-    // Add new zone
-    zones.push(newZone);
-    
-    // Save updated list
-    await AsyncStorage.setItem(SAFE_ZONES_STORAGE_KEY, JSON.stringify(zones));
-    
-    return newZone;
-  } catch (error) {
-    console.error('Error adding safe zone:', error);
-    throw error;
-  }
-};
-
-// Update an existing safe zone
-export const updateSafeZone = async (zoneId, updatedData) => {
-  try {
-    const zonesJSON = await AsyncStorage.getItem(SAFE_ZONES_STORAGE_KEY);
-    if (zonesJSON) {
-      let zones = JSON.parse(zonesJSON);
+/**
+ * Service for safe zones API calls
+ * with local storage fallback for offline use
+ */
+class SafeZonesService {
+  /**
+   * Get all safe zones for a patient
+   * @param {string} patientId - Patient ID
+   * @returns {Promise<Array>} List of safe zones
+   */
+  static async getSafeZones(patientId) {
+    try {
+      // Try to get from API first
+      const zones = await ApiService.get(ENDPOINTS.SAFE_ZONES.BY_PATIENT(patientId));
       
-      // Find zone index
-      const zoneIndex = zones.findIndex(z => z.id === zoneId);
+      // Cache the result locally
+      await this.cacheLocalSafeZones(zones, patientId);
       
-      if (zoneIndex !== -1) {
-        // Update zone data
-        zones[zoneIndex] = {
-          ...zones[zoneIndex],
-          ...updatedData,
-          updatedAt: new Date().toISOString(),
-        };
-        
-        // Save updated list
-        await AsyncStorage.setItem(SAFE_ZONES_STORAGE_KEY, JSON.stringify(zones));
-        return zones[zoneIndex];
-      }
+      return zones;
+    } catch (error) {
+      console.log('API error in getSafeZones, using local data:', error);
+      
+      // Fall back to local storage
+      return SafeZonesLocalService.getSafeZones(patientId);
     }
-    throw new Error('Safe zone not found');
-  } catch (error) {
-    console.error('Error updating safe zone:', error);
-    throw error;
   }
-};
 
-// Delete a safe zone
-export const deleteSafeZone = async (zoneId) => {
-  try {
-    const zonesJSON = await AsyncStorage.getItem(SAFE_ZONES_STORAGE_KEY);
-    if (zonesJSON) {
-      let zones = JSON.parse(zonesJSON);
+  /**
+   * Cache safe zones data locally
+   * @param {Array} zones - Safe zones data to cache
+   * @param {string} patientId - Patient ID for filtering
+   */
+  static async cacheLocalSafeZones(zones, patientId) {
+    try {
+      // We need to get all existing zones for other patients first
+      const allLocalZones = await SafeZonesLocalService.getSafeZones();
       
-      // Filter out the zone to delete
-      const updatedZones = zones.filter(z => z.id !== zoneId);
+      // Filter out zones for this patient
+      const otherPatientZones = allLocalZones.filter(
+        z => z.patientId !== patientId
+      );
       
-      // Save updated list
-      await AsyncStorage.setItem(SAFE_ZONES_STORAGE_KEY, JSON.stringify(updatedZones));
+      // Combine with new zones data
+      const combinedZones = [...otherPatientZones, ...zones];
+      
+      // Save to local storage
+      await AsyncStorage.setItem(
+        'lumoscare_safezones', 
+        JSON.stringify(combinedZones)
+      );
+    } catch (error) {
+      console.error('Error caching safe zones data locally:', error);
+    }
+  }
+
+  /**
+   * Get a safe zone by ID
+   * @param {string} zoneId - Safe zone ID
+   * @returns {Promise<Object>} Safe zone data
+   */
+  static async getSafeZoneById(zoneId) {
+    try {
+      // Try to get from API first
+      return await ApiService.get(ENDPOINTS.SAFE_ZONES.BY_ID(zoneId));
+    } catch (error) {
+      console.log('API error in getSafeZoneById, using local data:', error);
+      
+      // Fall back to local storage
+      return SafeZonesLocalService.getSafeZoneById(zoneId);
+    }
+  }
+
+  /**
+   * Add a new safe zone
+   * @param {Object} zoneData - Safe zone data
+   * @returns {Promise<Object>} Created safe zone data
+   */
+  static async addSafeZone(zoneData) {
+    try {
+      // Try to add via API first
+      const newZone = await ApiService.post(ENDPOINTS.SAFE_ZONES.BASE, zoneData);
+      
+      // Update local storage cache
+      await SafeZonesLocalService.addSafeZone(newZone);
+      
+      return newZone;
+    } catch (error) {
+      console.log('API error in addSafeZone, using local storage:', error);
+      
+      // Add locally
+      const localZone = await SafeZonesLocalService.addSafeZone(zoneData);
+      
+      // Store for later sync
+      SyncManager.storePendingOperation('safeZone', 'create', localZone);
+      
+      return localZone;
+    }
+  }
+
+  /**
+   * Update a safe zone
+   * @param {string} zoneId - Safe zone ID
+   * @param {Object} updatedData - Updated safe zone data
+   * @returns {Promise<Object>} Updated safe zone data
+   */
+  static async updateSafeZone(zoneId, updatedData) {
+    try {
+      // Try to update via API first
+      const updatedZone = await ApiService.put(
+        ENDPOINTS.SAFE_ZONES.BY_ID(zoneId), 
+        updatedData
+      );
+      
+      // Update local storage cache
+      await SafeZonesLocalService.updateSafeZone(zoneId, updatedZone);
+      
+      return updatedZone;
+    } catch (error) {
+      console.log('API error in updateSafeZone, using local storage:', error);
+      
+      // Update locally
+      const localUpdatedZone = await SafeZonesLocalService.updateSafeZone(
+        zoneId, 
+        updatedData
+      );
+      
+      // Store for later sync
+      SyncManager.storePendingOperation(
+        'safeZone', 
+        'update', 
+        { id: zoneId, ...updatedData }
+      );
+      
+      return localUpdatedZone;
+    }
+  }
+
+  /**
+   * Delete a safe zone
+   * @param {string} zoneId - Safe zone ID
+   * @returns {Promise<boolean>} Success indicator
+   */
+  static async deleteSafeZone(zoneId) {
+    try {
+      // Try to delete via API first
+      await ApiService.delete(ENDPOINTS.SAFE_ZONES.BY_ID(zoneId));
+      
+      // Delete from local storage too
+      await SafeZonesLocalService.deleteSafeZone(zoneId);
+      
+      return true;
+    } catch (error) {
+      console.log('API error in deleteSafeZone, using local storage:', error);
+      
+      // Delete locally
+      await SafeZonesLocalService.deleteSafeZone(zoneId);
+      
+      // Store for later sync
+      SyncManager.storePendingOperation(
+        'safeZone', 
+        'delete', 
+        { id: zoneId }
+      );
+      
       return true;
     }
-    return false;
-  } catch (error) {
-    console.error('Error deleting safe zone:', error);
-    throw error;
   }
-};
 
-// Add sample safe zones for development/demo purposes
-export const addSampleSafeZones = async (patientId) => {
-  const sampleZones = [
-    {
-      id: 'sample1',
-      name: 'Home',
-      address: '123 Main Street, Anytown, USA',
-      latitude: 34.0522,
-      longitude: -118.2437,
-      radius: 100, // meters
-      patientId,
-      active: true,
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 'sample2',
-      name: 'Pharmacy',
-      address: '456 Health Avenue, Anytown, USA',
-      latitude: 34.0589,
-      longitude: -118.2552,
-      radius: 50, // meters
-      patientId,
-      active: true,
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 'sample3',
-      name: 'Park',
-      address: '789 Green Park, Anytown, USA',
-      latitude: 34.0685,
-      longitude: -118.2321,
-      radius: 150, // meters
-      patientId,
-      active: false,
-      createdAt: new Date().toISOString(),
-    },
-  ];
-  
-  try {
-    await AsyncStorage.setItem(SAFE_ZONES_STORAGE_KEY, JSON.stringify(sampleZones));
-    return sampleZones;
-  } catch (error) {
-    console.error('Error adding sample safe zones:', error);
-    throw error;
+  /**
+   * Check if a location is within safe zones
+   * @param {Object} locationData - Location data
+   * @returns {Promise<Object>} Location check results
+   */
+  static async checkLocation(locationData) {
+    try {
+      return await ApiService.post(ENDPOINTS.AGENT.CHECK_LOCATION, locationData);
+    } catch (error) {
+      console.log('API error in checkLocation, using local calculation:', error);
+      
+      // Fall back to local calculation
+      const { coordinates, patientId } = locationData;
+      
+      if (!coordinates || !Array.isArray(coordinates) || coordinates.length !== 2) {
+        throw new Error('Invalid coordinates format');
+      }
+      
+      const location = {
+        latitude: coordinates[1],
+        longitude: coordinates[0]
+      };
+      
+      // Get all active safe zones for this patient
+      const safeZones = await SafeZonesLocalService.getSafeZones(patientId);
+      const activeZones = safeZones.filter(zone => zone.active);
+      
+      // Check if location is within any active zone
+      for (const zone of activeZones) {
+        if (SafeZonesLocalService.isLocationInSafeZone(location, zone)) {
+          return {
+            inSafeZone: true,
+            zoneId: zone.id,
+            zoneName: zone.name
+          };
+        }
+      }
+      
+      return {
+        inSafeZone: false,
+        nearestZone: null // We could calculate this, but keeping it simple
+      };
+    }
   }
-};
 
-// Calculate if a location is within a safe zone
-export const isLocationInSafeZone = (location, zone) => {
-  // Calculate distance between two coordinates in meters using Haversine formula
-  const getDistanceFromLatLonInMeters = (lat1, lon1, lat2, lon2) => {
-    const R = 6371000; // Radius of earth in meters
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = 
-      Math.sin(dLat/2) * Math.sin(dLat/2) +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-      Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
-    const d = R * c; // Distance in meters
-    return d;
-  };
-  
-  // Calculate distance
-  const distance = getDistanceFromLatLonInMeters(
-    location.latitude, 
-    location.longitude, 
-    zone.latitude, 
-    zone.longitude
-  );
-  
-  // Check if within radius
-  return distance <= zone.radius;
-};
+  /**
+   * Add sample safe zones (for development/testing)
+   * @param {string} patientId - Patient ID
+   * @returns {Promise<Array>} Sample safe zones data
+   */
+  static async addSampleSafeZones(patientId) {
+    return SafeZonesLocalService.addSampleSafeZones(patientId);
+  }
+}
+
+export default SafeZonesService;

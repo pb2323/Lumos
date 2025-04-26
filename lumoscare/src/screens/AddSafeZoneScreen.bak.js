@@ -1,15 +1,11 @@
-// src/screens/AddSafeZoneScreen.js
-
-import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Platform, TextInput as RNTextInput } from 'react-native';
-import { Text, Button, Surface, HelperText, IconButton, ActivityIndicator } from 'react-native-paper';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, ScrollView, Alert, Platform } from 'react-native';
+import { TextInput, Button, Text, Surface, HelperText } from 'react-native-paper';
+import Slider from '../components/Slider';
 import MapView, { Circle, Marker } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { useSafeZones } from '../context/SafeZonesContext';
 import { theme } from '../utils/theme';
-import Slider from '../components/Slider';
-import { getCurrentLocation, reverseGeocodeCoordinates } from '../utils/LocationUtils';
-import { TextInput } from 'react-native-paper';
 
 const darkMapStyle = [
   {
@@ -115,9 +111,6 @@ const AddSafeZoneScreen = ({ navigation }) => {
   const [locationPermission, setLocationPermission] = useState(null);
   const [mapRegion, setMapRegion] = useState(null);
   const [errors, setErrors] = useState({});
-  const [isGettingLocation, setIsGettingLocation] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const searchInputRef = useRef(null);
   
   // Get location permission on mount
   useEffect(() => {
@@ -127,29 +120,24 @@ const AddSafeZoneScreen = ({ navigation }) => {
       
       if (status === 'granted') {
         try {
-          setIsGettingLocation(true);
-          const currentLocation = await getCurrentLocation();
+          const location = await Location.getCurrentPositionAsync({});
+          const { latitude, longitude } = location.coords;
           
-          setLocation(currentLocation);
+          setLocation({
+            latitude,
+            longitude,
+          });
+          
           setMapRegion({
-            ...currentLocation,
+            latitude,
+            longitude,
             latitudeDelta: 0.005,
             longitudeDelta: 0.005,
           });
-          
-          // Get address for current location
-          const formattedAddress = await reverseGeocodeCoordinates(
-            currentLocation.latitude,
-            currentLocation.longitude
-          );
-          
-          setAddress(formattedAddress);
         } catch (error) {
           console.error('Error getting location:', error);
           // Set a default location (Los Angeles)
           setDefaultLocation();
-        } finally {
-          setIsGettingLocation(false);
         }
       } else {
         // Set a default location
@@ -174,116 +162,26 @@ const AddSafeZoneScreen = ({ navigation }) => {
   };
   
   // Handle map press - set new marker location
-  const handleMapPress = async (event) => {
+  const handleMapPress = (event) => {
     const { coordinate } = event.nativeEvent;
     setLocation(coordinate);
     
+    // Get address for this location (reverse geocoding)
+    reverseGeocode(coordinate);
+  };
+  
+  // Reverse geocode (get address from coordinates)
+  const reverseGeocode = async (coordinate) => {
     try {
-      setIsGettingLocation(true);
-      // Get address for this location (reverse geocoding)
-      const formattedAddress = await reverseGeocodeCoordinates(
-        coordinate.latitude,
-        coordinate.longitude
-      );
+      const result = await Location.reverseGeocodeAsync(coordinate);
       
-      setAddress(formattedAddress);
+      if (result.length > 0) {
+        const { street, city, region, country, postalCode } = result[0];
+        const formattedAddress = `${street || ''}, ${city || ''}, ${region || ''} ${postalCode || ''}, ${country || ''}`;
+        setAddress(formattedAddress.replace(/^, |, $/g, ''));
+      }
     } catch (error) {
       console.error('Error reverse geocoding:', error);
-    } finally {
-      setIsGettingLocation(false);
-    }
-  };
-  
-  // Geocode address to get coordinates
-  const searchAddress = async () => {
-    if (!searchQuery.trim()) {
-      return;
-    }
-    
-    try {
-      setIsGettingLocation(true);
-      
-      // Geocode the address
-      const results = await Location.geocodeAsync(searchQuery);
-      
-      if (results.length > 0) {
-        const { latitude, longitude } = results[0];
-        
-        // Set new location and map region
-        setLocation({ latitude, longitude });
-        setMapRegion({
-          latitude,
-          longitude,
-          latitudeDelta: 0.005,
-          longitudeDelta: 0.005,
-        });
-        
-        // Get formatted address
-        const formattedAddress = await reverseGeocodeCoordinates(latitude, longitude);
-        setAddress(formattedAddress);
-        
-        // Clear search query
-        setSearchQuery('');
-        
-        // Blur the search input
-        if (searchInputRef.current) {
-          searchInputRef.current.blur();
-        }
-      } else {
-        Alert.alert('Not Found', 'No location found for this address');
-      }
-    } catch (error) {
-      console.error('Error geocoding address:', error);
-      Alert.alert('Error', 'Could not find location');
-    } finally {
-      setIsGettingLocation(false);
-    }
-  };
-  
-  // Go to current location
-  const goToCurrentLocation = async () => {
-    try {
-      setIsGettingLocation(true);
-      
-      // Request permission if not granted
-      if (!locationPermission) {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        
-        if (status !== 'granted') {
-          Alert.alert(
-            'Permission Denied',
-            'Location permission is required to use your current location'
-          );
-          setIsGettingLocation(false);
-          return;
-        }
-        
-        setLocationPermission(true);
-      }
-      
-      // Get current location
-      const currentLocation = await getCurrentLocation();
-      
-      // Set new location and map region
-      setLocation(currentLocation);
-      setMapRegion({
-        ...currentLocation,
-        latitudeDelta: 0.005,
-        longitudeDelta: 0.005,
-      });
-      
-      // Get address for current location
-      const formattedAddress = await reverseGeocodeCoordinates(
-        currentLocation.latitude,
-        currentLocation.longitude
-      );
-      
-      setAddress(formattedAddress);
-    } catch (error) {
-      console.error('Error getting current location:', error);
-      Alert.alert('Error', 'Could not get current location');
-    } finally {
-      setIsGettingLocation(false);
     }
   };
   
@@ -336,25 +234,6 @@ const AddSafeZoneScreen = ({ navigation }) => {
       <Surface style={styles.formCard}>
         <Text style={styles.title}>Add New Safe Zone</Text>
         
-        <View style={styles.searchContainer}>
-          <RNTextInput
-            ref={searchInputRef}
-            style={styles.searchInput}
-            placeholder="Search for location..."
-            placeholderTextColor={theme.colors.disabled}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            returnKeyType="search"
-            onSubmitEditing={searchAddress}
-          />
-          <IconButton
-            icon="magnify"
-            size={24}
-            color={theme.colors.primary}
-            onPress={searchAddress}
-          />
-        </View>
-        
         <TextInput
           label="Name *"
           value={name}
@@ -376,7 +255,6 @@ const AddSafeZoneScreen = ({ navigation }) => {
           style={styles.input}
           theme={{ colors: { primary: theme.colors.primary } }}
           error={!!errors.address}
-          multiline
         />
         {errors.address && (
           <HelperText type="error" visible={true}>
@@ -405,32 +283,20 @@ const AddSafeZoneScreen = ({ navigation }) => {
       </Surface>
       
       <Surface style={styles.mapCard}>
-        <View style={styles.mapHeader}>
-          <Text style={styles.mapTitle}>Select Location</Text>
-          <IconButton 
-            icon="crosshairs-gps" 
-            color={theme.colors.primary}
-            size={24}
-            onPress={goToCurrentLocation}
-            disabled={isGettingLocation}
-          />
-        </View>
-        
+        <Text style={styles.mapTitle}>Select Location</Text>
         {errors.location && (
           <HelperText type="error" visible={true}>
             {errors.location}
           </HelperText>
         )}
         
-        {mapRegion ? (
+        {mapRegion && (
           <View style={styles.mapContainer}>
             <MapView
               style={styles.map}
               region={mapRegion}
               customMapStyle={darkMapStyle}
               onPress={handleMapPress}
-              showsUserLocation={locationPermission}
-              showsMyLocationButton={false}
             >
               {location && (
                 <>
@@ -448,13 +314,6 @@ const AddSafeZoneScreen = ({ navigation }) => {
                 </>
               )}
             </MapView>
-            
-            {isGettingLocation && (
-              <View style={styles.loadingOverlay}>
-                <ActivityIndicator size="large" color={theme.colors.primary} />
-              </View>
-            )}
-            
             {!locationPermission && (
               <View style={styles.permissionOverlay}>
                 <Text style={styles.permissionText}>
@@ -462,11 +321,6 @@ const AddSafeZoneScreen = ({ navigation }) => {
                 </Text>
               </View>
             )}
-          </View>
-        ) : (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={theme.colors.primary} />
-            <Text style={styles.loadingText}>Loading map...</Text>
           </View>
         )}
         
@@ -480,7 +334,7 @@ const AddSafeZoneScreen = ({ navigation }) => {
         onPress={handleSubmit}
         style={styles.saveButton}
         loading={loading}
-        disabled={loading || isGettingLocation}
+        disabled={loading}
       >
         Save Safe Zone
       </Button>
@@ -505,20 +359,6 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     marginBottom: theme.spacing.medium,
     textAlign: 'center',
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.colors.background,
-    borderRadius: theme.roundness,
-    marginBottom: theme.spacing.medium,
-    paddingHorizontal: theme.spacing.small,
-  },
-  searchInput: {
-    flex: 1,
-    height: 50,
-    color: theme.colors.text,
-    fontSize: theme.fonts.sizes.body,
   },
   input: {
     marginBottom: theme.spacing.medium,
@@ -555,43 +395,20 @@ const styles = StyleSheet.create({
     borderRadius: theme.roundness,
     backgroundColor: theme.colors.surface,
   },
-  mapHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
   mapTitle: {
     fontSize: theme.fonts.sizes.subheading,
     fontWeight: 'bold',
     color: theme.colors.text,
+    marginBottom: theme.spacing.small,
   },
   mapContainer: {
     height: 300,
     borderRadius: theme.roundness,
     overflow: 'hidden',
-    marginVertical: theme.spacing.medium,
-    position: 'relative',
+    marginBottom: theme.spacing.medium,
   },
   map: {
     ...StyleSheet.absoluteFillObject,
-  },
-  loadingContainer: {
-    height: 300,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: theme.colors.background,
-    borderRadius: theme.roundness,
-    marginVertical: theme.spacing.medium,
-  },
-  loadingText: {
-    color: theme.colors.text,
-    marginTop: theme.spacing.small,
-  },
-  loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   permissionOverlay: {
     ...StyleSheet.absoluteFillObject,

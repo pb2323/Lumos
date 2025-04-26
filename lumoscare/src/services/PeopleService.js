@@ -1,155 +1,200 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+// src/services/PeopleService.js
 
-// Key for storing people in AsyncStorage
-const PEOPLE_STORAGE_KEY = 'lumoscare_people';
+import ApiService from './ApiService';
+import { ENDPOINTS } from '../config/api';
+import * as PeopleLocalService from './PeopleLocalService';
+import SyncManager from '../utils/SyncManager';
 
-// Get a list of all people for a specific patient
-export const getPeople = async (patientId) => {
-  try {
-    const peopleJSON = await AsyncStorage.getItem(PEOPLE_STORAGE_KEY);
-    if (peopleJSON) {
-      const people = JSON.parse(peopleJSON);
-      return people.filter(person => person.patientId === patientId);
-    }
-    return [];
-  } catch (error) {
-    console.error('Error getting people:', error);
-    return [];
-  }
-};
-
-// Get a specific person by ID
-export const getPersonById = async (personId) => {
-  try {
-    const peopleJSON = await AsyncStorage.getItem(PEOPLE_STORAGE_KEY);
-    if (peopleJSON) {
-      const people = JSON.parse(peopleJSON);
-      return people.find(person => person.id === personId);
-    }
-    return null;
-  } catch (error) {
-    console.error('Error getting person by ID:', error);
-    return null;
-  }
-};
-
-// Add a new person
-export const addPerson = async (personData) => {
-  try {
-    // Generate a unique ID (in a real app, this would come from the backend)
-    const newPerson = {
-      ...personData,
-      id: Math.random().toString(36).substring(2, 15),
-      lastInteraction: new Date().toISOString()
-    };
-    
-    // Get existing people
-    const peopleJSON = await AsyncStorage.getItem(PEOPLE_STORAGE_KEY);
-    let people = [];
-    if (peopleJSON) {
-      people = JSON.parse(peopleJSON);
-    }
-    
-    // Add new person
-    people.push(newPerson);
-    
-    // Save updated list
-    await AsyncStorage.setItem(PEOPLE_STORAGE_KEY, JSON.stringify(people));
-    
-    return newPerson;
-  } catch (error) {
-    console.error('Error adding person:', error);
-    throw error;
-  }
-};
-
-// Update an existing person
-export const updatePerson = async (personId, updatedData) => {
-  try {
-    const peopleJSON = await AsyncStorage.getItem(PEOPLE_STORAGE_KEY);
-    if (peopleJSON) {
-      let people = JSON.parse(peopleJSON);
+/**
+ * Service for recognized people/faces API calls
+ * with local storage fallback for offline use
+ */
+class PeopleService {
+  /**
+   * Get all recognized people for a patient
+   * @param {string} patientId - Patient ID
+   * @returns {Promise<Array>} List of recognized people
+   */
+  static async getPeople(patientId) {
+    try {
+      // Try to get from API first
+      const people = await ApiService.get(ENDPOINTS.FACES.BY_PATIENT(patientId));
       
-      // Find person index
-      const personIndex = people.findIndex(p => p.id === personId);
+      // Cache the result locally
+      await this.cacheLocalPeople(people, patientId);
       
-      if (personIndex !== -1) {
-        // Update person data
-        people[personIndex] = {
-          ...people[personIndex],
-          ...updatedData
-        };
-        
-        // Save updated list
-        await AsyncStorage.setItem(PEOPLE_STORAGE_KEY, JSON.stringify(people));
-        return people[personIndex];
-      }
+      return people;
+    } catch (error) {
+      console.log('API error in getPeople, using local data:', error);
+      
+      // Fall back to local storage
+      return PeopleLocalService.getPeople(patientId);
     }
-    throw new Error('Person not found');
-  } catch (error) {
-    console.error('Error updating person:', error);
-    throw error;
   }
-};
 
-// Delete a person
-export const deletePerson = async (personId) => {
-  try {
-    const peopleJSON = await AsyncStorage.getItem(PEOPLE_STORAGE_KEY);
-    if (peopleJSON) {
-      let people = JSON.parse(peopleJSON);
+  /**
+   * Cache people data locally
+   * @param {Array} people - People data to cache
+   * @param {string} patientId - Patient ID for filtering
+   */
+  static async cacheLocalPeople(people, patientId) {
+    try {
+      // We need to get all existing people for other patients first
+      const allLocalPeople = await PeopleLocalService.getPeople();
       
-      // Filter out the person to delete
-      const updatedPeople = people.filter(p => p.id !== personId);
+      // Filter out people for this patient
+      const otherPatientPeople = allLocalPeople.filter(
+        p => p.patientId !== patientId
+      );
       
-      // Save updated list
-      await AsyncStorage.setItem(PEOPLE_STORAGE_KEY, JSON.stringify(updatedPeople));
+      // Combine with new people data
+      const combinedPeople = [...otherPatientPeople, ...people];
+      
+      // Save to local storage
+      await AsyncStorage.setItem(
+        'lumoscare_people', 
+        JSON.stringify(combinedPeople)
+      );
+    } catch (error) {
+      console.error('Error caching people data locally:', error);
+    }
+  }
+
+  /**
+   * Get a recognized person by ID
+   * @param {string} personId - Person ID
+   * @returns {Promise<Object>} Person data
+   */
+  static async getPersonById(personId) {
+    try {
+      // Try to get from API first
+      return await ApiService.get(ENDPOINTS.FACES.BY_ID(personId));
+    } catch (error) {
+      console.log('API error in getPersonById, using local data:', error);
+      
+      // Fall back to local storage
+      return PeopleLocalService.getPersonById(personId);
+    }
+  }
+
+  /**
+   * Add a new recognized person
+   * @param {Object} personData - Person data including face image
+   * @returns {Promise<Object>} Created person data
+   */
+  static async addPerson(personData) {
+    try {
+      // Try to add via API first
+      const newPerson = await ApiService.post(ENDPOINTS.FACES.BASE, personData);
+      
+      // Update local storage cache
+      await PeopleLocalService.addPerson(newPerson);
+      
+      return newPerson;
+    } catch (error) {
+      console.log('API error in addPerson, using local storage:', error);
+      
+      // Add locally
+      const localPerson = await PeopleLocalService.addPerson(personData);
+      
+      // Store for later sync
+      SyncManager.storePendingOperation('person', 'create', localPerson);
+      
+      return localPerson;
+    }
+  }
+
+  /**
+   * Update a recognized person
+   * @param {string} personId - Person ID
+   * @param {Object} updatedData - Updated person data
+   * @returns {Promise<Object>} Updated person data
+   */
+  static async updatePerson(personId, updatedData) {
+    try {
+      // Try to update via API first
+      const updatedPerson = await ApiService.put(
+        ENDPOINTS.FACES.BY_ID(personId), 
+        updatedData
+      );
+      
+      // Update local storage cache
+      await PeopleLocalService.updatePerson(personId, updatedPerson);
+      
+      return updatedPerson;
+    } catch (error) {
+      console.log('API error in updatePerson, using local storage:', error);
+      
+      // Update locally
+      const localUpdatedPerson = await PeopleLocalService.updatePerson(
+        personId, 
+        updatedData
+      );
+      
+      // Store for later sync
+      SyncManager.storePendingOperation(
+        'person', 
+        'update', 
+        { id: personId, ...updatedData }
+      );
+      
+      return localUpdatedPerson;
+    }
+  }
+
+  /**
+   * Delete a recognized person
+   * @param {string} personId - Person ID
+   * @returns {Promise<boolean>} Success indicator
+   */
+  static async deletePerson(personId) {
+    try {
+      // Try to delete via API first
+      await ApiService.delete(ENDPOINTS.FACES.BY_ID(personId));
+      
+      // Delete from local storage too
+      await PeopleLocalService.deletePerson(personId);
+      
+      return true;
+    } catch (error) {
+      console.log('API error in deletePerson, using local storage:', error);
+      
+      // Delete locally
+      await PeopleLocalService.deletePerson(personId);
+      
+      // Store for later sync
+      SyncManager.storePendingOperation(
+        'person', 
+        'delete', 
+        { id: personId }
+      );
+      
       return true;
     }
-    return false;
-  } catch (error) {
-    console.error('Error deleting person:', error);
-    throw error;
   }
-};
 
-// Add sample data for development/demo purposes
-export const addSamplePeople = async (patientId) => {
-  const samplePeople = [
-    {
-      id: 'sample1',
-      name: 'Sarah Johnson',
-      relationship: 'Daughter',
-      photoUrl: null, // In a real app, this would be a URL
-      notes: 'Has two children named Emma and Jack',
-      lastInteraction: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days ago
-      patientId,
-    },
-    {
-      id: 'sample2',
-      name: 'Michael Smith',
-      relationship: 'Son',
-      photoUrl: null,
-      notes: 'Lives in Chicago, visits monthly',
-      lastInteraction: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), // 1 week ago
-      patientId,
-    },
-    {
-      id: 'sample3',
-      name: 'Robert Adams',
-      relationship: 'Friend',
-      photoUrl: null,
-      notes: 'Plays chess together every Sunday',
-      lastInteraction: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), // Yesterday
-      patientId,
-    },
-  ];
-  
-  try {
-    await AsyncStorage.setItem(PEOPLE_STORAGE_KEY, JSON.stringify(samplePeople));
-    return samplePeople;
-  } catch (error) {
-    console.error('Error adding sample people:', error);
-    throw error;
+  /**
+   * Process face recognition
+   * @param {Object} faceData - Face data to recognize
+   * @returns {Promise<Object>} Recognition results
+   */
+  static async recognizeFace(faceData) {
+    try {
+      return await ApiService.post(ENDPOINTS.AGENT.FACE_RECOGNITION, faceData);
+    } catch (error) {
+      console.error('Face recognition failed:', error);
+      throw error; // No local fallback for face recognition
+    }
   }
-};
+
+  /**
+   * Add sample people (for development/testing)
+   * @param {string} patientId - Patient ID
+   * @returns {Promise<Array>} Sample people data
+   */
+  static async addSamplePeople(patientId) {
+    return PeopleLocalService.addSamplePeople(patientId);
+  }
+}
+
+export default PeopleService;
