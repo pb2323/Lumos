@@ -360,6 +360,7 @@ const AddSafeZoneScreen = ({ navigation }) => {
           value={name}
           onChangeText={setName}
           style={styles.input}
+          textColor='#FFFFFF'
           theme={{ colors: { primary: theme.colors.primary } }}
           error={!!errors.name}
         />
@@ -374,6 +375,7 @@ const AddSafeZoneScreen = ({ navigation }) => {
           value={address}
           onChangeText={setAddress}
           style={styles.input}
+          textColor='#FFFFFF'
           theme={{ colors: { primary: theme.colors.primary } }}
           error={!!errors.address}
           multiline

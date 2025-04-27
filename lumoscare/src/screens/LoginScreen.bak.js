@@ -54,6 +54,7 @@ const LoginScreen = ({ navigation }) => {
               value={name}
               onChangeText={setName}
               style={styles.input}
+              textColor='#FFFFFF'
               theme={{ colors: { primary: theme.colors.primary } }}
               dense
             />
@@ -66,6 +67,7 @@ const LoginScreen = ({ navigation }) => {
             onChangeText={setEmail}
             keyboardType="email-address"
             style={styles.input}
+            textColor='#FFFFFF'
             theme={{ colors: { primary: theme.colors.primary } }}
             dense
             autoCapitalize="none"
@@ -78,6 +80,7 @@ const LoginScreen = ({ navigation }) => {
             onChangeText={setPassword}
             secureTextEntry
             style={styles.input}
+            textColor='#FFFFFF'
             theme={{ colors: { primary: theme.colors.primary } }}
             dense
           />
