@@ -156,6 +156,7 @@ const AddPersonScreen = ({ navigation }) => {
             value={name}
             onChangeText={setName}
             style={styles.input}
+            textColor='#FFFFFF'
             theme={{ colors: { primary: theme.colors.primary } }}
             error={!!errors.name}
           />
@@ -170,6 +171,7 @@ const AddPersonScreen = ({ navigation }) => {
             value={relationship}
             onChangeText={setRelationship}
             style={styles.input}
+            textColor='#FFFFFF'
             theme={{ colors: { primary: theme.colors.primary } }}
             error={!!errors.relationship}
           />
@@ -186,6 +188,7 @@ const AddPersonScreen = ({ navigation }) => {
             multiline
             numberOfLines={4}
             style={styles.input}
+            textColor='#FFFFFF'
             theme={{ colors: { primary: theme.colors.primary } }}
           />
           

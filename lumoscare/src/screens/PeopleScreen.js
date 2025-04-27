@@ -99,6 +99,7 @@ const PeopleScreen = ({ navigation }) => {
         iconColor={theme.colors.primary}
         inputStyle={{ color: theme.colors.text }}
         placeholderTextColor={theme.colors.textSecondary}
+        textColor='#FFFFFF'
         theme={{ colors: { primary: theme.colors.primary } }}
       />
       

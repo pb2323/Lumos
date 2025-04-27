@@ -201,6 +201,7 @@ const SafeZoneDetailScreen = ({ route, navigation }) => {
                 value={editedName}
                 onChangeText={setEditedName}
                 style={styles.input}
+                textColor='#FFFFFF'
                 theme={{ colors: { primary: theme.colors.primary } }}
                 dense
               />
@@ -212,6 +213,7 @@ const SafeZoneDetailScreen = ({ route, navigation }) => {
                 value={editedAddress}
                 onChangeText={setEditedAddress}
                 style={styles.input}
+                textColor='#FFFFFF'
                 theme={{ colors: { primary: theme.colors.primary } }}
                 dense
               />
@@ -232,6 +234,7 @@ const SafeZoneDetailScreen = ({ route, navigation }) => {
                   }}
                   keyboardType="numeric"
                   style={styles.radiusInput}
+                  textColor='#FFFFFF'
                   theme={{ colors: { primary: theme.colors.primary } }}
                   dense
                 />

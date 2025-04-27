@@ -95,6 +95,7 @@ const PersonDetailScreen = ({ route, navigation }) => {
                 value={editedName}
                 onChangeText={setEditedName}
                 style={styles.editInput}
+                textColor='#FFFFFF'
                 theme={{ colors: { primary: theme.colors.primary } }}
                 dense
               />
@@ -102,6 +103,7 @@ const PersonDetailScreen = ({ route, navigation }) => {
                 value={editedRelationship}
                 onChangeText={setEditedRelationship}
                 style={styles.editInput}
+                textColor='#FFFFFF'
                 theme={{ colors: { primary: theme.colors.primary } }}
                 dense
               />
@@ -167,6 +169,7 @@ const PersonDetailScreen = ({ route, navigation }) => {
             multiline
             numberOfLines={4}
             style={styles.editNotesInput}
+            textColor='#FFFFFF'
             theme={{ colors: { primary: theme.colors.primary } }}
           />
         )}
