@@ -45,7 +45,7 @@ It passively recognizes faces and surroundings, provides contextual reminders, a
 - **Node.js + Express** API server
 - **MongoDB Atlas** for data storage
 - **Cloudflare Workers** for serverless processing
-- **Firebase Authentication** for user management
+- **OAuth** for single sign-on and role based authorization
 - **WebSockets** for real-time updates
 
 **Data Structures**:
@@ -54,7 +54,7 @@ It passively recognizes faces and surroundings, provides contextual reminders, a
 - Safe zones and geofences
 - Journals and memory logs
 
-**Tech Stack**: Node.js, Express, MongoDB Atlas, Cloudflare Workers, Firebase
+**Tech Stack**: Node.js, Express, MongoDB Atlas, Cloudflare Workers
 
 ---
 
@@ -136,22 +136,8 @@ npx expo start
 ## Privacy and Ethical Considerations
 
 - **Closed Ecosystem**: Only registered family members are recognized.
-- **Consent-Based Model**: Recognition requires explicit consent.
 - **On-Device Processing**: Sensitive data stays local when possible.
 - **Dignified Experience**: Designed to assist, not surveil.
-
----
-
-## Contributing
-
-We welcome contributions to improve Lumos further.  
-Please open an Issue or submit a Pull Request!
-
----
-
-## License
-
-This project is licensed under the [MIT License](LICENSE).
 
 ---
 
