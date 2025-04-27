@@ -3,6 +3,9 @@ import dotenv from 'dotenv';
 dotenv.config();
 import { z } from "zod";
 import axios from "axios";
+import express from 'express';
+const app = express();
+app.use(express.json());
 
 import { defineDAINService, ToolConfig } from "@dainprotocol/service-sdk";
 
@@ -14,6 +17,91 @@ import {
 } from "@dainprotocol/utils";
 
 const port = Number(process.env.PORT) || 2023;
+const expressPort = Number(process.env.EXPRESS_PORT) || 3000;
+
+// Add patient location storage
+interface PatientLocation {
+  latitude: number;
+  longitude: number;
+  timestamp: string;
+}
+
+const patientLocations = new Map<string, PatientLocation>();
+
+// Clear stored data on startup
+console.log("\n🧹 Clearing stored data...");
+patientLocations.clear();
+console.log("✅ Stored data cleared");
+
+// Define safe zones (could be fetched from a database)
+const safeZones = [
+  {
+    name: "Home",
+    center: { latitude: 34.0522, longitude: -118.2437 },
+    radius: 100,  // 100 meters
+    description: "Patient's residence area"
+  },
+  {
+    name: "Doctor's Office",
+    center: { latitude: 34.0610, longitude: -118.2501 },
+    radius: 50,   // 50 meters
+    description: "Medical office location"
+  }
+];
+
+// Add this before starting the DAIN service
+app.post('/api/location-update', (req, res) => {
+  const { patientId, latitude, longitude } = req.body;
+  
+  // Store the latest location
+  patientLocations.set(patientId, {
+    latitude,
+    longitude,
+    timestamp: new Date().toISOString()
+  });
+  
+  console.log(`\n📱 Received location update from location agent:`);
+  console.log(`   Patient ID: ${patientId}`);
+  console.log(`   Location: (${latitude}, ${longitude})`);
+  console.log(`   Raw request body:`, req.body);
+  console.log(`   Safe zones:`, safeZones);
+  
+  // Process the location data using your existing handler
+  checkLocationStatusConfig.handler(
+    { patientId, latitude, longitude, safeZones },
+    {
+      id: "system",
+      agentId: '',
+      address: ''
+    },
+    {
+      app: undefined
+    }
+  ).then(result => {
+    console.log(`\n🔍 Location Status from location agent:`);
+    console.log(`   ${result.text}`);
+    if (result.data.currentZone) {
+      console.log(`   Current Zone: ${result.data.currentZone}`);
+    }
+    console.log(`   Distance: ${result.data.distance.toFixed(2)}m`);
+    console.log(`   Safe zones used:`, result.data.safeZones);
+    
+    // Store result or perform actions based on location status
+    if (result.data.status === "unsafe") {
+      console.log(`\n⚠️ ALERT: Patient ${patientId} is outside safe zones!`);
+      // Here you could trigger notifications or other actions
+    }
+  }).catch(error => {
+    console.error(`\n❌ Error processing location update:`, error);
+  });
+  
+  res.status(200).json({ status: "received" });
+});
+
+// Start Express server alongside DAIN service
+const expressServer = app.listen(expressPort, () => {
+  console.log(`Location update API endpoint available at http://localhost:${expressPort}/api/location-update`);
+});
 
 // Helper function to get health status emoji
 const getHealthStatusEmoji = (status: string): string => {
@@ -58,6 +146,19 @@ const checkLocationStatusConfig: ToolConfig = {
       status: z.string().describe("Location status (safe/unsafe)"),
       currentZone: z.string().optional().describe("Current safe zone name if within one"),
       distance: z.number().describe("Distance to nearest safe zone in meters"),
+      safeZones: z.array(
+        z.object({
+          name: z.string(),
+          center: z.object({
+            latitude: z.number(),
+            longitude: z.number(),
+          }),
+          radius: z.number(),
+          distance: z.number(),
+          isWithin: z.boolean(),
+          status: z.string()
+        })
+      ).describe("List of safe zones with their status")
     })
     .describe("Location status information"),
   pricing: { pricePerUse: 0, currency: "USD" },
@@ -66,9 +167,15 @@ const checkLocationStatusConfig: ToolConfig = {
     agentInfo,
     context
   ) => {
-    console.log(
-      `Checking location status for patient ${patientId} at (${latitude},${longitude})`
-    );
+    // Log initial state
+    console.log(`Processing location check for patient ${patientId}`);
+    console.log(`Location: (${latitude}, ${longitude})`);
+    console.log(`Safe zones: ${safeZones.length} zones defined`);
+
+    console.log(`\n📍 Checking location status:`);
+    console.log(`   Patient: ${patientId}`);
+    console.log(`   Location: (${latitude}, ${longitude})`);
+    console.log(`   Safe Zones: ${safeZones.length} zones defined`);
 
     // Calculate distance to each safe zone
     const distances = safeZones.map((zone) => {
@@ -78,7 +185,19 @@ const checkLocationStatusConfig: ToolConfig = {
         zone.center.latitude,
         zone.center.longitude
       );
-      return { zone, distance };
+      console.log(`\nZone Analysis for ${zone.name}:`);
+      console.log(`  Zone center: (${zone.center.latitude.toFixed(6)}, ${zone.center.longitude.toFixed(6)})`);
+      console.log(`  Patient location: (${latitude.toFixed(6)}, ${longitude.toFixed(6)})`);
+      console.log(`  Calculated distance: ${distance.toFixed(2)} meters`);
+      console.log(`  Zone radius: ${zone.radius} meters`);
+      console.log(`  Is within zone: ${distance <= zone.radius ? 'Yes' : 'No'}`);
+      console.log(`  Status: ${distance <= zone.radius ? 'SAFE' : 'UNSAFE'}`);
+      return { 
+        zone, 
+        distance, 
+        isWithin: distance <= zone.radius,
+        status: distance <= zone.radius ? 'safe' : 'unsafe'
+      };
     });
 
     // Find nearest safe zone
@@ -86,15 +205,45 @@ const checkLocationStatusConfig: ToolConfig = {
       prev.distance < curr.distance ? prev : curr
     );
 
-    const status = nearest.distance <= nearest.zone.radius ? "safe" : "unsafe";
+    // Check if patient is within ANY safe zone
+    const isWithinAnyZone = distances.some(d => d.isWithin);
+    const status = isWithinAnyZone ? "safe" : "unsafe";
     const statusEmoji = getHealthStatusEmoji(status);
 
+    // Find which zone they're in (if any)
+    const currentZone = distances.find(d => d.isWithin)?.zone.name;
+
+    // Log analysis results
+    console.log(`\nFinal Analysis:`);
+    console.log(`  Patient location: (${latitude.toFixed(6)}, ${longitude.toFixed(6)})`);
+    console.log(`  Nearest zone: ${nearest.zone.name}`);
+    console.log(`  Distance to nearest: ${nearest.distance.toFixed(2)} meters`);
+    console.log(`  Zone radius: ${nearest.zone.radius} meters`);
+    console.log(`  Is within any zone: ${isWithinAnyZone ? 'Yes' : 'No'}`);
+    console.log(`  Current zone: ${currentZone || 'None'}`);
+    console.log(`  Final status: ${status.toUpperCase()} ${statusEmoji}`);
+    console.log(`  Reason: ${isWithinAnyZone ? 
+      `Patient is within ${currentZone} zone` : 
+      `Patient is outside all safe zones (nearest: ${nearest.zone.name} at ${nearest.distance.toFixed(2)}m)`}`);
+
     return {
-      text: `Patient ${patientId} is ${status} (${nearest.distance.toFixed(2)}m from nearest safe zone)`,
+      text: `Patient ${patientId} is ${status}${currentZone ? ` (within ${currentZone} zone)` : ` (${nearest.distance.toFixed(2)} meters from nearest safe zone)`}`,
       data: {
         status,
-        currentZone: status === "safe" ? nearest.zone.name : undefined,
+        currentZone,
         distance: nearest.distance,
+        latitude,
+        longitude,
+        timestamp: new Date().toISOString(),
+        safeZones: distances.map(d => ({
+          name: d.zone.name,
+          center: d.zone.center,
+          radius: d.zone.radius,
+          distance: d.distance,
+          isWithin: d.isWithin,
+          status: d.status,
+          description: d.zone.description
+        }))
       },
       ui: new CardUIBuilder()
         .setRenderMode("page")
@@ -108,27 +257,30 @@ const checkLocationStatusConfig: ToolConfig = {
                 latitude,
                 longitude,
                 title: `Patient ${patientId}`,
-                description: `Status: ${status}\nDistance: ${nearest.distance.toFixed(2)}m`,
+                description: `Status: ${status}\nLocation: (${latitude.toFixed(6)}, ${longitude.toFixed(6)})\nDistance: ${nearest.distance.toFixed(2)} meters\nCurrent Zone: ${currentZone || 'None'}`,
                 text: `Patient ${statusEmoji}`,
               },
-              ...safeZones.map((zone) => ({
-                latitude: zone.center.latitude,
-                longitude: zone.center.longitude,
-                title: zone.name,
-                description: `Safe Zone (${zone.radius}m radius)`,
+              ...distances.map((d) => ({
+                latitude: d.zone.center.latitude,
+                longitude: d.zone.center.longitude,
+                title: d.zone.name,
+                description: `${d.zone.description}\nSafe Zone (${d.zone.radius} meters radius)\nCenter: (${d.zone.center.latitude.toFixed(6)}, ${d.zone.center.longitude.toFixed(6)})\nDistance: ${d.distance.toFixed(2)} meters\nStatus: ${d.isWithin ? 'WITHIN ZONE' : 'OUTSIDE ZONE'}`,
                 text: "🏥",
               })),
             ])
-            .setRenderMode("inline")
             .build()
         )
         .content(
-          `Status: ${status}\nDistance to nearest safe zone: ${nearest.distance.toFixed(
-            2
-          )}m`
+          `Status: ${status}\n` +
+          `Current Zone: ${currentZone || 'None'}\n` +
+          `Patient Location: (${latitude.toFixed(6)}, ${longitude.toFixed(6)})\n` +
+          `Distance to nearest safe zone: ${nearest.distance.toFixed(2)} meters\n` +
+          `Safe Zones:\n` +
+          distances.map(d => 
+            `- ${d.zone.name}: ${d.distance.toFixed(2)} meters away (radius: ${d.zone.radius} meters) - ${d.isWithin ? 'WITHIN ZONE' : 'OUTSIDE ZONE'}`
+          ).join('\n')
         )
-        .setRenderMode("inline")
-        .build(),
+        .build()
     };
   },
 };
@@ -241,7 +393,71 @@ const getHealthMetricsConfig: ToolConfig = {
   },
 };
 
-// Helper function to calculate distance between two points
+// Add new tool to get patient location
+const getPatientLocationConfig: ToolConfig = {
+  id: "get-patient-location",
+  name: "Get Patient Location",
+  description: "Retrieves the latest known location of a patient",
+  input: z
+    .object({
+      patientId: z.string().describe("Patient ID"),
+    })
+    .describe("Input parameters for location request"),
+  output: z
+    .object({
+      latitude: z.number().describe("Patient's latitude"),
+      longitude: z.number().describe("Patient's longitude"),
+      timestamp: z.string().describe("When the location was last updated"),
+    })
+    .describe("Patient's latest location information"),
+  pricing: { pricePerUse: 0, currency: "USD" },
+  handler: async ({ patientId }, agentInfo, context) => {
+    const location = patientLocations.get(patientId);
+    
+    if (!location) {
+      return {
+        text: `No location data available for patient ${patientId}`,
+        data: {
+          latitude: 0,
+          longitude: 0,
+          timestamp: new Date().toISOString()
+        },
+        ui: new CardUIBuilder()
+          .setRenderMode("page")
+          .title(`Location for Patient ${patientId}`)
+          .content("No location data available")
+          .build()
+      };
+    }
+
+    return {
+      text: `Latest location for patient ${patientId}: (${location.latitude}, ${location.longitude})`,
+      data: location,
+      ui: new CardUIBuilder()
+        .setRenderMode("page")
+        .title(`Location for Patient ${patientId}`)
+        .addChild(
+          new MapUIBuilder()
+            .setInitialView(location.latitude, location.longitude, 12)
+            .setMapStyle("mapbox://styles/mapbox/streets-v12")
+            .addMarkers([
+              {
+                latitude: location.latitude,
+                longitude: location.longitude,
+                title: `Patient ${patientId}`,
+                description: `Last updated: ${new Date(location.timestamp).toLocaleString()}`,
+                text: `Patient 📍`,
+              }
+            ])
+            .build()
+        )
+        .content(`Last updated: ${new Date(location.timestamp).toLocaleString()}`)
+        .build()
+    };
+  },
+};
+
+// Helper function to calculate distance between two points in meters
 function calculateDistance(
   lat1: number,
   lon1: number,
@@ -254,12 +470,27 @@ function calculateDistance(
   const Δφ = ((lat2 - lat1) * Math.PI) / 180;
   const Δλ = ((lon2 - lon1) * Math.PI) / 180;
 
+  // Calculate raw coordinate differences
+  const latDiff = lat2 - lat1;
+  const lonDiff = lon2 - lon1;
+  const latDiffMeters = latDiff * 111000; // Approximate meters per degree of latitude
+  const lonDiffMeters = lonDiff * 111000 * Math.cos((lat1 + lat2) * Math.PI / 360); // Approximate meters per degree of longitude
+
   const a =
     Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
     Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
-  return R * c;
+  const distance = R * c; // Distance in meters
+
+  console.log(`\nDistance calculation details:`);
+  console.log(`  From: (${lat1.toFixed(6)}, ${lon1.toFixed(6)})`);
+  console.log(`  To: (${lat2.toFixed(6)}, ${lon2.toFixed(6)})`);
+  console.log(`  Raw coordinate differences:`);
+  console.log(`    Latitude: ${latDiff.toFixed(6)} degrees (≈ ${latDiffMeters.toFixed(2)} meters)`);
+  console.log(`    Longitude: ${lonDiff.toFixed(6)} degrees (≈ ${lonDiffMeters.toFixed(2)} meters)`);
+  console.log(`  Haversine distance: ${distance.toFixed(2)} meters`);
+  return distance;
 }
 
 const healthcareService = defineDAINService({
@@ -279,6 +510,7 @@ const healthcareService = defineDAINService({
         "Is patient 123 within their safe zones?",
         "Check location status for patient 456",
         "Where is patient 789?",
+        "Get latest location for patient 123",
       ],
     },
     {
@@ -293,7 +525,7 @@ const healthcareService = defineDAINService({
   identity: {
     apiKey: process.env.DAIN_API_KEY
   },
-  tools: [checkLocationStatusConfig, getHealthMetricsConfig],
+  tools: [checkLocationStatusConfig, getHealthMetricsConfig, getPatientLocationConfig],
 });
 
 // Add error handling for service startup
@@ -305,3 +537,9 @@ healthcareService.startNode({ port: port })
     console.error("Failed to start Healthcare DAIN Service:", error);
     process.exit(1);
   }); 
+
+// Add shutdown handler
+process.on('SIGINT', () => {
+  expressServer.close();
+  process.exit(0);
+});

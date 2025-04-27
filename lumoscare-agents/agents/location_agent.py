@@ -7,10 +7,13 @@ from dotenv import load_dotenv
 from datetime import datetime
 from agents.protocols import location_protocol, LocationUpdateMessage, alert_protocol, AlertMessage
 from agents.notification_agent import notification_agent  # Import it
-
+import requests
 
 # Load environment variables
 load_dotenv()
+
+# Get healthcare service URL from environment or use default
+HEALTHCARE_SERVICE_URL = os.getenv('HEALTHCARE_SERVICE_URL', 'http://localhost:3000')
 
 # Create the location tracking agent
 location_agent = Agent(
@@ -84,13 +87,36 @@ async def handle_location_update(ctx: Context, sender: str, msg: LocationUpdateM
     print(f"[LocationAgent] Received location update from {sender}")
     print(f"[LocationAgent] Patient ID: {patient_id}, Location: {latitude}, {longitude}")
     
+    # Forward to healthcare service
+    try:
+        healthcare_service_url = f"{HEALTHCARE_SERVICE_URL}/api/location-update"
+        payload = {
+            "patientId": patient_id,
+            "latitude": latitude,
+            "longitude": longitude
+        }
+        
+        print(f"[LocationAgent] Forwarding to healthcare service at {healthcare_service_url}")
+        print(f"[LocationAgent] Payload: {payload}")
+        
+        response = requests.post(healthcare_service_url, json=payload)
+        
+        if response.status_code == 200:
+            print(f"[LocationAgent] Successfully forwarded data to healthcare service")
+            print(f"[LocationAgent] Response: {response.json()}")
+        else:
+            print(f"[LocationAgent] Failed to forward data to healthcare service: {response.status_code}")
+            print(f"[LocationAgent] Response: {response.text}")
+    except Exception as e:
+        print(f"[LocationAgent] Error connecting to healthcare service: {str(e)}")
+        print(f"[LocationAgent] Service URL: {healthcare_service_url}")
+    
     # Check if location is within safe zones
     within_safe_zone, zone_name = is_within_safe_zones(latitude, longitude)
     
     if within_safe_zone:
         print(f"[LocationAgent] ✅ Patient {patient_id} is within safe zone: {zone_name}")
         ctx.logger.info(f"Patient {patient_id} is within safe zone: {zone_name}")
-
     else:
         print(f"[LocationAgent] ⚠️ ALERT: Patient {patient_id} has left all safe zones!")
         ctx.logger.warning(f"ALERT: Patient {patient_id} has left all safe zones!")
@@ -101,13 +127,12 @@ async def handle_location_update(ctx: Context, sender: str, msg: LocationUpdateM
             "patient_id": patient_id,
             "message": f"Patient has left all safe zones. Current coordinates: {latitude}, {longitude}",
             "priority": "high",
-            "timestamp": datetime.now().isoformat()  # Use ISO format for timestamps
+            "timestamp": datetime.now().isoformat()
         }
         
-        # In a real implementation, this would send a message to the caregiver agent
-        # For now, we'll just log it
         print(f"[LocationAgent] Alert data: {json.dumps(alert_data, indent=2)}")
         ctx.logger.info(f"Alert data: {json.dumps(alert_data)}")
+        
         # Send alert to NotificationAgent
         alert = AlertMessage(
             patient_id=patient_id,
@@ -117,11 +142,10 @@ async def handle_location_update(ctx: Context, sender: str, msg: LocationUpdateM
         )
 
         await ctx.send(
-            notification_agent.address,  # send to NotificationAgent
+            notification_agent.address,
             alert
         )
         print(f"[LocationAgent] 🚀 Sent alert to NotificationAgent!")
-
 
 # Register the protocol
 location_agent.include(location_protocol)
