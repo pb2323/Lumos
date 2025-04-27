@@ -1,9 +1,11 @@
 import dotenv from 'dotenv';
+import path from 'path';
 // Initialize dotenv at the beginning of your file
-dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 import { z } from "zod";
 import axios from "axios";
 import express from 'express';
+import twilio from 'twilio';
 const app = express();
 app.use(express.json());
 
@@ -268,6 +270,7 @@ const checkLocationStatusConfig: ToolConfig = {
                 text: "🏥",
               })),
             ])
+            .setRenderMode("inline")
             .build()
         )
         .content(
@@ -280,6 +283,7 @@ const checkLocationStatusConfig: ToolConfig = {
             `- ${d.zone.name}: ${d.distance.toFixed(2)} meters away (radius: ${d.zone.radius} meters) - ${d.isWithin ? 'WITHIN ZONE' : 'OUTSIDE ZONE'}`
           ).join('\n')
         )
+        .setRenderMode("inline")
         .build()
     };
   },
@@ -449,13 +453,315 @@ const getPatientLocationConfig: ToolConfig = {
                 text: `Patient 📍`,
               }
             ])
+            .setRenderMode("inline")
             .build()
         )
         .content(`Last updated: ${new Date(location.timestamp).toLocaleString()}`)
+        .setRenderMode("inline")
         .build()
     };
   },
 };
+
+// Debug logging for environment variables
+console.log('\n🔧 Environment Configuration:');
+console.log(`   Current Directory: ${__dirname}`);
+console.log(`   .env Path: ${path.resolve(__dirname, '../.env')}`);
+console.log(`   TWILIO_ACCOUNT_SID: ${process.env.TWILIO_ACCOUNT_SID ? 'Set' : 'Not Set'}`);
+console.log(`   TWILIO_AUTH_TOKEN: ${process.env.TWILIO_AUTH_TOKEN ? 'Set' : 'Not Set'}`);
+console.log(`   TWILIO_PHONE_NUMBER: ${process.env.TWILIO_PHONE_NUMBER}`);
+console.log(`   BASE_URL: ${process.env.BASE_URL}`);
+
+// Initialize Twilio client with proper credentials
+if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
+  console.error('❌ Twilio credentials not found in environment variables');
+  process.exit(1);
+}
+
+const twilioClient = twilio(
+  process.env.TWILIO_ACCOUNT_SID,
+  process.env.TWILIO_AUTH_TOKEN
+);
+
+// Verify Twilio client initialization
+console.log('\n🔧 Twilio Client Configuration:');
+console.log(`   Account SID: ${twilioClient.username}`);
+console.log(`   Account Status: ${twilioClient ? 'Initialized' : 'Failed'}`);
+
+// Helper function to format phone number to E.164
+function formatPhoneNumber(phoneNumber: string): string {
+  // Remove any non-digit characters
+  const cleaned = phoneNumber.replace(/\D/g, '');
+  
+  // If the number doesn't start with 1, add it
+  if (!cleaned.startsWith('1')) {
+    return `+1${cleaned}`;
+  }
+  
+  // Add the + prefix
+  return `+${cleaned}`;
+}
+
+// Add phone call configuration
+const phoneCallConfig: ToolConfig = {
+  id: "make-phone-call",
+  name: "Make Phone Call",
+  description: "Makes a phone call to notify about patient status",
+  input: z
+    .object({
+      patientId: z.string().describe("Patient ID"),
+      phoneNumber: z.string().describe("Phone number to call"),
+      message: z.string().describe("Message to deliver"),
+      priority: z.enum(["high", "medium", "low"]).describe("Call priority"),
+    })
+    .describe("Input parameters for phone call"),
+  output: z
+    .object({
+      callStatus: z.string().describe("Status of the call"),
+      callId: z.string().describe("Twilio call ID"),
+      timestamp: z.string().describe("When the call was made"),
+    })
+    .describe("Phone call result"),
+  pricing: { pricePerUse: 0, currency: "USD" },
+  handler: async ({ patientId, phoneNumber, message, priority }, agentInfo, context) => {
+    console.log(`\n📞 Making phone call:`);
+    console.log(`   Patient ID: ${patientId}`);
+    console.log(`   Original Phone Number: ${phoneNumber}`);
+    
+    // Format the phone number
+    const formattedNumber = formatPhoneNumber(phoneNumber);
+    console.log(`   Formatted Phone Number: ${formattedNumber}`);
+    console.log(`   Message: ${message}`);
+    console.log(`   Priority: ${priority}`);
+    console.log(`   Twilio Config:`);
+    console.log(`     Account SID: ${process.env.TWILIO_ACCOUNT_SID}`);
+    console.log(`     From Number: ${process.env.TWILIO_PHONE_NUMBER}`);
+    console.log(`     Base URL: ${process.env.BASE_URL}`);
+
+    try {
+      // Make the call using Twilio
+      console.log(`   Initiating Twilio call...`);
+      const call = await twilioClient.calls.create({
+        to: formattedNumber,
+        from: process.env.TWILIO_PHONE_NUMBER,
+        twiml: `<Response><Say>${message}</Say></Response>`,
+        statusCallback: `${process.env.BASE_URL}/api/call-status`,
+        statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
+        statusCallbackMethod: 'POST'
+      });
+
+      console.log(`   ✅ Call initiated successfully`);
+      console.log(`   Call ID: ${call.sid}`);
+      console.log(`   Call Status: ${call.status}`);
+      console.log(`   Call Direction: ${call.direction}`);
+      console.log(`   Call Duration: ${call.duration}`);
+
+      return {
+        text: `Phone call to ${formattedNumber} initiated successfully`,
+        data: {
+          callStatus: "initiated",
+          callId: call.sid,
+          timestamp: new Date().toISOString()
+        },
+        ui: new CardUIBuilder()
+          .setRenderMode("page")
+          .title(`Phone Call Status 📞`)
+          .content(
+            `Patient ID: ${patientId}\n` +
+            `Phone Number: ${formattedNumber}\n` +
+            `Message: ${message}\n` +
+            `Priority: ${priority}\n` +
+            `Status: Initiated\n` +
+            `Call ID: ${call.sid}\n` +
+            `Call Status: ${call.status}\n` +
+            `Call Direction: ${call.direction}`
+          )
+          .build()
+      };
+    } catch (error) {
+      console.error(`   ❌ Error making phone call:`, error);
+      console.error(`   Error details:`, {
+        message: error.message,
+        code: error.code,
+        status: error.status,
+        moreInfo: error.moreInfo
+      });
+      return {
+        text: `Failed to make phone call to ${formattedNumber}`,
+        data: {
+          callStatus: "failed",
+          error: error.message,
+          timestamp: new Date().toISOString()
+        },
+        ui: new CardUIBuilder()
+          .setRenderMode("page")
+          .title(`Phone Call Status ❌`)
+          .content(
+            `Patient ID: ${patientId}\n` +
+            `Phone Number: ${formattedNumber}\n` +
+            `Message: ${message}\n` +
+            `Priority: ${priority}\n` +
+            `Status: Failed\n` +
+            `Error: ${error.message}\n` +
+            `Error Code: ${error.code}\n` +
+            `Error Status: ${error.status}`
+          )
+          .build()
+      };
+    }
+  },
+};
+
+// Add make-call endpoint
+app.post('/api/make-call', async (req, res) => {
+  const { patientId, phoneNumber, message, priority } = req.body;
+  
+  console.log(`\n📞 Received call request:`);
+  console.log(`   Patient ID: ${patientId}`);
+  console.log(`   Phone Number: ${phoneNumber}`);
+  console.log(`   Message: ${message}`);
+  console.log(`   Priority: ${priority}`);
+  
+  try {
+    // Format the phone numbers
+    const formattedToNumber = formatPhoneNumber(phoneNumber);
+    const formattedFromNumber = formatPhoneNumber(process.env.TWILIO_PHONE_NUMBER || '');
+    
+    console.log(`   Formatted To Number: ${formattedToNumber}`);
+    console.log(`   Formatted From Number: ${formattedFromNumber}`);
+    console.log(`   Twilio Config:`);
+    console.log(`     Account SID: ${process.env.TWILIO_ACCOUNT_SID}`);
+    console.log(`     From Number: ${formattedFromNumber}`);
+    console.log(`     Base URL: ${process.env.BASE_URL}`);
+    
+    // Configure call based on priority
+    const callConfig = {
+      to: formattedToNumber,
+      from: formattedFromNumber,
+      twiml: `<Response><Say>${message}</Say></Response>`,
+      statusCallback: `${process.env.BASE_URL}/api/call-status`,
+      statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
+      statusCallbackMethod: 'POST'
+    };
+
+    // Add priority-specific settings
+    if (priority === 'high') {
+      callConfig['timeout'] = 30;  // 30 seconds timeout for high priority
+      callConfig['retry'] = true;  // Retry if call fails
+      callConfig['retryAttempts'] = 3;  // Try up to 3 times
+    } else {
+      callConfig['timeout'] = 60;  // 60 seconds timeout for normal calls
+    }
+    
+    // Make the call using Twilio
+    console.log(`   Initiating Twilio call...`);
+    console.log(`   Priority: ${priority}`);
+    console.log(`   Call Config:`, callConfig);
+    
+    const call = await twilioClient.calls.create(callConfig);
+
+    console.log(`   ✅ Call initiated successfully`);
+    console.log(`   Call ID: ${call.sid}`);
+    console.log(`   Call Status: ${call.status}`);
+    console.log(`   Call Direction: ${call.direction}`);
+    
+    // For high priority calls, wait for initial status
+    if (priority === 'high') {
+      console.log(`   Waiting for high-priority call status...`);
+      // Wait for a short time to get initial status
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Get updated call status
+      const updatedCall = await twilioClient.calls(call.sid).fetch();
+      console.log(`   Updated Call Status: ${updatedCall.status}`);
+      
+      // If call is queued, try to force it through
+      if (updatedCall.status === 'queued') {
+        console.log(`   Call is queued, attempting to force through...`);
+        try {
+          await twilioClient.calls(call.sid).update({
+            status: 'in-progress' as any
+          });
+          console.log(`   Call status updated to in-progress`);
+        } catch (error) {
+          console.error(`   Failed to force call through:`, error);
+        }
+      }
+    }
+    
+    res.status(200).json({
+      status: "success",
+      callId: call.sid,
+      callStatus: call.status,
+      priority: priority
+    });
+  } catch (error) {
+    console.error(`   ❌ Error making phone call:`, error);
+    console.error(`   Error details:`, {
+      message: error.message,
+      code: error.code,
+      status: error.status,
+      moreInfo: error.moreInfo
+    });
+    
+    res.status(500).json({
+      status: "error",
+      error: error.message,
+      code: error.code
+    });
+  }
+});
+
+// Add call status webhook endpoint
+app.post('/api/call-status', async (req, res) => {
+  const { CallSid, CallStatus, CallDuration, From, To } = req.body;
+  console.log(`\n📞 Call Status Update:`);
+  console.log(`   Call ID: ${CallSid}`);
+  console.log(`   Status: ${CallStatus}`);
+  console.log(`   Duration: ${CallDuration}`);
+  console.log(`   From: ${From}`);
+  console.log(`   To: ${To}`);
+  
+  // Handle different call statuses
+  switch (CallStatus) {
+    case 'initiated':
+      console.log(`   Call is being initiated...`);
+      break;
+    case 'ringing':
+      console.log(`   Phone is ringing...`);
+      break;
+    case 'answered':
+      console.log(`   Call was answered!`);
+      break;
+    case 'completed':
+      console.log(`   Call completed successfully`);
+      break;
+    case 'failed':
+      console.log(`   Call failed`);
+      break;
+    case 'busy':
+      console.log(`   Line was busy`);
+      break;
+    case 'no-answer':
+      console.log(`   No answer`);
+      break;
+    case 'queued':
+      console.log(`   Call is queued, attempting to force through...`);
+      try {
+        await twilioClient.calls(CallSid).update({
+          status: 'in-progress' as any
+        });
+        console.log(`   Call status updated to in-progress`);
+      } catch (error) {
+        console.error(`   Failed to force call through:`, error);
+      }
+      break;
+    default:
+      console.log(`   Unknown status: ${CallStatus}`);
+  }
+  
+  res.status(200).send('OK');
+});
 
 // Helper function to calculate distance between two points in meters
 function calculateDistance(
@@ -521,11 +827,19 @@ const healthcareService = defineDAINService({
         "What are patient 789's latest measurements?",
       ],
     },
+    {
+      category: "Phone Calls",
+      queries: [
+        "Call patient 123 about their location",
+        "Make an emergency call to patient 456",
+        "Schedule a wellness check call for patient 789",
+      ],
+    },
   ],
   identity: {
     apiKey: process.env.DAIN_API_KEY
   },
-  tools: [checkLocationStatusConfig, getHealthMetricsConfig, getPatientLocationConfig],
+  tools: [checkLocationStatusConfig, getHealthMetricsConfig, getPatientLocationConfig, phoneCallConfig],
 });
 
 // Add error handling for service startup
