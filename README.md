@@ -73,7 +73,7 @@ It passively recognizes faces and surroundings, provides contextual reminders, a
 ## Key Features
 
 - **Face Recognition and Memory Overlay**: Displays names, relationships, and memory cues when familiar faces are detected.
-- **Contextual Reminders**: Non-intrusive time- and location-based prompts for medication, appointments, and daily activities.
+- **Contextual Reminders**: Non-intrusive time and location-based prompts for medication, appointments, and daily activities.
 - **Safe Zone Monitoring**: Alerts triggered if the patient exits predefined safe zones using Melissa APIs.
 - **Voice Journaling**: Daily reflections captured through voice and summarized using Gemini AI.
 - **Caregiver Connectivity**: Secure dashboard to manage profiles, monitor activities, and receive alerts.
