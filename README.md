@@ -31,9 +31,9 @@ It passively recognizes faces and surroundings, provides contextual reminders, a
 - **Fetch.ai uAgents** for autonomy and coordination
 - **Gemini 2.5 API** for memory prompts, decision-making, and voice journaling
 - Specialized Agents:
-  - **Face Recognition Agent**: Identifies faces using stored profiles
-  - **Safety Agent**: Monitors GPS location and triggers alerts
-  - **Notification Agent**: Manages communication with caregivers
+  - **Face Recognition Agent (Fetch.AI)**: Identifies faces using stored profiles
+  - **Safety Agent (Fetch.AI)**: Monitors GPS location and triggers alerts
+  - **Notification Agent (Fetch.AI)**: Manages communication with caregivers
   - **Healthcare Agent (DAIN)**: Provides healthcare insights and response orchestration
 
 **Tech Stack**: Python, Universal Agent Framework (Fetch.ai), Google Gemini 2.5
