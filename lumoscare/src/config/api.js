@@ -2,7 +2,7 @@
 import { API_BASE_URL as ENV_API_BASE_URL } from '@env';
 
 // API base URL
-export const API_BASE_URL = ENV_API_BASE_URL || "http://localhost:5000/api";
+export const API_BASE_URL = ENV_API_BASE_URL || "http://localhost:50001/api";
 
 // Rest of the code...
 // API endpoints
