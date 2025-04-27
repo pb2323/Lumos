@@ -1,0 +1,10 @@
+deepface==0.0.93
+numpy>=1.14.0
+matplotlib==3.10.0
+Pillow==11.1.0
+langchain>=0.0.352
+langchain-google-genai>=0.0.5
+# uagents-adapter-core>=0.1.0
+uagents-adapter>=0.1.0
+python-dateutil>=2.8.2
+uuid>=1.30 
