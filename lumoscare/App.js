@@ -28,7 +28,7 @@ const CombinedTheme = {
   },
 };
 
-export default function App() {
+function App() {
   // Set up network change listener for synchronization
   useEffect(() => {
     // Initial sync
@@ -49,13 +49,15 @@ export default function App() {
     });
     
     // Clean up on unmount
-    return () => unsubscribe();
+    return () => {
+      unsubscribe()
+    };
   }, []);
   
   return (
     <SafeAreaProvider>
       <PaperProvider theme={CombinedTheme}>
-        <NavigationContainer theme={CombinedTheme}>
+        <NavigationContainer>
           <StatusBar style="light" />
           <AppNavigator />
         </NavigationContainer>
@@ -63,3 +65,5 @@ export default function App() {
     </SafeAreaProvider>
   );
 }
+
+export default App;
