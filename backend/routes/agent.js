@@ -9,7 +9,7 @@ const { memoryAgent, safetyAgent, reminderAgent } = require('../services/agentSe
 router.post(
   '/face-recognition',
   [
-    verifyGoogleToken,
+    // verifyGoogleToken,
     checkUserExists,
     [
       check('patientId', 'Patient ID is required').not().isEmpty(),
@@ -40,7 +40,7 @@ router.post(
 router.post(
   '/check-location',
   [
-    verifyGoogleToken,
+    // verifyGoogleToken,
     checkUserExists,
     [
       check('patientId', 'Patient ID is required').not().isEmpty(),
@@ -71,7 +71,7 @@ router.post(
 router.post(
   '/medication-reminder',
   [
-    verifyGoogleToken,
+    // verifyGoogleToken,
     checkUserExists,
     [
       check('patientId', 'Patient ID is required').not().isEmpty(),

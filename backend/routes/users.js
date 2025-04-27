@@ -14,7 +14,7 @@ const {
 router.post(
   '/',
   [
-    verifyGoogleToken,
+    // verifyGoogleToken,
     [
       check('type', 'User type is required').not().isEmpty(),
       check('type', 'Type must be either patient or caregiver').isIn(['patient', 'caregiver']),
@@ -28,14 +28,16 @@ router.post(
 
 // Get current user
 // GET /api/users/me
-router.get('/me', [verifyGoogleToken, checkUserExists], getCurrentUser);
+router.get('/me', [
+    // verifyGoogleToken, 
+    checkUserExists], getCurrentUser);
 
 // Update user
 // PUT /api/users/me
 router.put(
   '/me',
   [
-    verifyGoogleToken,
+    // verifyGoogleToken,
     checkUserExists,
     [
       check('firstName', 'First name is required').not().isEmpty(),
@@ -47,6 +49,8 @@ router.put(
 
 // Get care circle
 // GET /api/users/care-circle
-router.get('/care-circle', [verifyGoogleToken, checkUserExists], getCareCircle);
+router.get('/care-circle', [
+    // verifyGoogleToken, 
+    checkUserExists], getCareCircle);
 
 module.exports = router;

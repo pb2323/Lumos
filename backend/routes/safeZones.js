@@ -14,7 +14,7 @@ const {
 router.post(
   '/',
   [
-    verifyGoogleToken,
+    // verifyGoogleToken,
     checkUserExists,
     requireCaregiver,
     [
@@ -30,7 +30,9 @@ router.post(
 // GET /api/safe-zones/patient/:patientId
 router.get(
   '/patient/:patientId',
-  [verifyGoogleToken, checkUserExists],
+  [
+    // verifyGoogleToken, 
+    checkUserExists],
   getSafeZones
 );
 
@@ -39,7 +41,7 @@ router.get(
 router.put(
   '/:id',
   [
-    verifyGoogleToken,
+    // verifyGoogleToken,
     checkUserExists,
     requireCaregiver
   ],
@@ -50,7 +52,9 @@ router.put(
 // DELETE /api/safe-zones/:id
 router.delete(
   '/:id',
-  [verifyGoogleToken, checkUserExists, requireCaregiver],
+  [
+    // verifyGoogleToken, 
+    checkUserExists, requireCaregiver],
   deleteSafeZone
 );
 
