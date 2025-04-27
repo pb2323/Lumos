@@ -134,6 +134,7 @@ const ProfileScreen = () => {
               value={firstName}
               onChangeText={setFirstName}
               style={styles.input}
+              textColor='#FFFFFF'
               theme={{ colors: { primary: theme.colors.primary } }}
             />
             
@@ -142,6 +143,7 @@ const ProfileScreen = () => {
               value={lastName}
               onChangeText={setLastName}
               style={styles.input}
+              textColor='#FFFFFF'
               theme={{ colors: { primary: theme.colors.primary } }}
             />
             
@@ -151,6 +153,7 @@ const ProfileScreen = () => {
               onChangeText={setPhone}
               keyboardType="phone-pad"
               style={styles.input}
+              textColor='#FFFFFF'
               theme={{ colors: { primary: theme.colors.primary } }}
             />
             
