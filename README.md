@@ -1,4 +1,4 @@
-# LumosCare - Memory Assistance System
+# Lumos - Memory Assistance System
 
 **Tagline**: *Bringing light back to fading memories*
 
@@ -6,7 +6,7 @@
 
 ## Project Overview
 
-**LumosCare** is an AI-powered memory assistance platform designed to support individuals with Alzheimer's and memory-related conditions. By combining **Snapchat Spectacles**, **autonomous agents**, **AR overlays**, and **location tracking**, LumosCare offers real-time memory cues and enhances safety while respecting privacy.
+**Lumos** is an AI-powered memory assistance platform designed to support individuals with Alzheimer's and memory-related conditions. By combining **Snapchat Spectacles**, **autonomous agents**, **AR overlays**, and **location tracking**, Lumos offers real-time memory cues and enhances safety while respecting privacy.
 
 It passively recognizes faces and surroundings, provides contextual reminders, alerts caregivers if patients wander outside safe zones, and preserves important daily reflections — promoting independence and improving quality of life.
 
@@ -58,7 +58,7 @@ It passively recognizes faces and surroundings, provides contextual reminders, a
 
 ---
 
-### 4. **Mobile Application - LumosCare (Caretaker App)**
+### 4. **Mobile Application - Lumos (Caretaker App)**
 
 - **React Native** app for caregivers
 - Manage patient profiles, safe zones, and reminders
@@ -82,7 +82,7 @@ It passively recognizes faces and surroundings, provides contextual reminders, a
 
 ## System Architecture
 
-The LumosCare system follows a distributed, modular architecture:
+The Lumos system follows a distributed, modular architecture:
 
 1. **AR Wearable** (Spectacles): Captures real-time data
 2. **Face Recognition Agent**: Identifies faces and context
@@ -93,8 +93,7 @@ The LumosCare system follows a distributed, modular architecture:
 7. **Caretaker Mobile App**: User interface for caregivers
 
 ### Visual Diagrams
-- **High-Level Architecture Diagram** ![Architecture Diagram](path-to-diagram)
-- **Use Case Diagram** ![Use Case Diagram](path-to-diagram)
+- **High-Level Architecture Diagram** ![Architecture Diagram](https://github.com/user-attachments/assets/bd9a4865-d181-42a4-92de-33fcae8c74af)
 
 ---
 
@@ -145,7 +144,7 @@ npx expo start
 
 ## Contributing
 
-We welcome contributions to improve LumosCare further.  
+We welcome contributions to improve Lumos further.  
 Please open an Issue or submit a Pull Request!
 
 ---
