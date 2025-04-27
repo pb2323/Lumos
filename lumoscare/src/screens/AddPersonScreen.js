@@ -2,10 +2,11 @@
 
 import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView, Alert, Image } from 'react-native';
-import { TextInput, Button, Text, Surface, IconButton, HelperText } from 'react-native-paper';
+import { TextInput, Button, Text, Surface, IconButton, HelperText, ActivityIndicator } from 'react-native-paper';
 import * as ImagePicker from 'expo-image-picker';
 import { usePeople } from '../context/PeopleContext';
 import { theme } from '../utils/theme';
+import ImageUploadService from '../services/ImageUploadService';
 
 const AddPersonScreen = ({ navigation }) => {
   const { addPerson, loading } = usePeople();
@@ -14,6 +15,7 @@ const AddPersonScreen = ({ navigation }) => {
   const [notes, setNotes] = useState('');
   const [photo, setPhoto] = useState(null);
   const [errors, setErrors] = useState({});
+  const [isUploading, setIsUploading] = useState(false);
   
   // Take a photo with the camera
   const takePhoto = async () => {
@@ -92,20 +94,34 @@ const AddPersonScreen = ({ navigation }) => {
   const handleSubmit = async () => {
     if (validateForm()) {
       try {
+        setIsUploading(true);
+        
         // Prepare person data
         const personData = {
           name,
           relationship,
           notes,
-          photoUrl: photo, // In a real app, we would upload this to a server
+          photoUrl: photo,
         };
         
-        // If we have a photo and it's for face recognition, convert to base64
+        // If we have a photo, upload it first
         if (photo) {
-          // In a real app, you would convert the photo to base64 here
-          // personData.faceData = base64encodedface...
+          try {
+            // This will convert to base64 and upload to the API
+            await ImageUploadService.uploadPersonImage(photo, name);
+            console.log('Image uploaded successfully');
+          } catch (error) {
+            console.error('Error uploading image:', error);
+            // Continue with person creation even if image upload fails
+            Alert.alert(
+              'Image Upload Warning',
+              'The image could not be uploaded to the server, but the person will still be added.',
+              [{ text: 'Continue' }]
+            );
+          }
         }
         
+        // Now add the person
         await addPerson(personData);
         
         Alert.alert(
@@ -114,7 +130,10 @@ const AddPersonScreen = ({ navigation }) => {
           [{ text: 'OK', onPress: () => navigation.goBack() }]
         );
       } catch (error) {
+        console.error('Error adding person:', error);
         Alert.alert('Error', 'Failed to add person');
+      } finally {
+        setIsUploading(false);
       }
     }
   };
@@ -150,6 +169,7 @@ const AddPersonScreen = ({ navigation }) => {
                 onPress={takePhoto}
                 style={[styles.photoButton, styles.cameraButton]}
                 labelStyle={styles.buttonLabel}
+                disabled={isUploading}
               >
                 Camera
               </Button>
@@ -159,13 +179,14 @@ const AddPersonScreen = ({ navigation }) => {
                 onPress={pickImage}
                 style={[styles.photoButton, styles.galleryButton]}
                 labelStyle={styles.buttonLabel}
+                disabled={isUploading}
               >
                 Gallery
               </Button>
             </View>
             
             <Text style={styles.photoHelp}>
-              Adding a photo helps the system recognize this person.
+              Adding a photo helpsf the system recognize this person.
             </Text>
           </View>
           
@@ -176,6 +197,7 @@ const AddPersonScreen = ({ navigation }) => {
             style={styles.input}
             theme={{ colors: { primary: theme.colors.primary } }}
             error={!!errors.name}
+            disabled={isUploading}
           />
           {errors.name && (
             <HelperText type="error" visible={true}>
@@ -190,6 +212,7 @@ const AddPersonScreen = ({ navigation }) => {
             style={styles.input}
             theme={{ colors: { primary: theme.colors.primary } }}
             error={!!errors.relationship}
+            disabled={isUploading}
           />
           {errors.relationship && (
             <HelperText type="error" visible={true}>
@@ -205,17 +228,24 @@ const AddPersonScreen = ({ navigation }) => {
             numberOfLines={4}
             style={styles.input}
             theme={{ colors: { primary: theme.colors.primary } }}
+            disabled={isUploading}
           />
           
           <Button
             mode="contained"
             onPress={handleSubmit}
             style={styles.saveButton}
-            loading={loading}
-            disabled={loading}
+            loading={loading || isUploading}
+            disabled={loading || isUploading}
           >
-            Save Person
+            {isUploading ? 'Uploading...' : 'Save Person'}
           </Button>
+          
+          {isUploading && (
+            <Text style={styles.uploadingText}>
+              Uploading image and adding person...
+            </Text>
+          )}
         </Surface>
       </ScrollView>
     </View>
@@ -304,6 +334,12 @@ const styles = StyleSheet.create({
   saveButton: {
     marginTop: theme.spacing.medium,
     backgroundColor: theme.colors.primary,
+  },
+  uploadingText: {
+    textAlign: 'center',
+    marginTop: 8,
+    color: theme.colors.primary,
+    fontStyle: 'italic',
   },
 });
 

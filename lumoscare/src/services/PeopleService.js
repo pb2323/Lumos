@@ -1,9 +1,10 @@
-// src/services/PeopleService.js
+// src/services/UpdatedPeopleService.js
 
 import ApiService from './ApiService';
 import { ENDPOINTS } from '../config/api';
 import * as PeopleLocalService from './PeopleLocalService';
 import SyncManager from '../utils/SyncManager';
+import ImageUploadService from './ImageUploadService';
 
 /**
  * Service for recognized people/faces API calls
@@ -84,6 +85,23 @@ class PeopleService {
    */
   static async addPerson(personData) {
     try {
+      // If we have a photo URL, upload it first
+      if (personData.photoUrl) {
+        try {
+          // Upload image and get result
+          await ImageUploadService.uploadPersonImage(
+            personData.photoUrl,
+            personData.name
+          );
+          
+          // Note: in a real app, you might want to store the image URL returned by the API
+          // and update personData.photoUrl with it
+        } catch (error) {
+          console.error('Error uploading image:', error);
+          // Continue with adding the person even if image upload fails
+        }
+      }
+      
       // Try to add via API first
       const newPerson = await ApiService.post(ENDPOINTS.FACES.BASE, personData);
       
@@ -112,6 +130,23 @@ class PeopleService {
    */
   static async updatePerson(personId, updatedData) {
     try {
+      // If we have a new photo URL, upload it first
+      if (updatedData.photoUrl) {
+        try {
+          // Upload image and get result
+          await ImageUploadService.uploadPersonImage(
+            updatedData.photoUrl,
+            updatedData.name || 'Unknown'
+          );
+          
+          // Note: in a real app, you might want to store the image URL returned by the API
+          // and update updatedData.photoUrl with it
+        } catch (error) {
+          console.error('Error uploading image:', error);
+          // Continue with updating the person even if image upload fails
+        }
+      }
+      
       // Try to update via API first
       const updatedPerson = await ApiService.put(
         ENDPOINTS.FACES.BY_ID(personId), 
