@@ -846,6 +846,47 @@ function calculateDistance(
   return distance;
 }
 
+// Near the beginning of your findNearestHospitalsConfig handler
+function getMockHospitals(latitude, longitude, maxResults = 5) {
+  return [
+    {
+      name: "Los Angeles General Hospital",
+      address: "1200 N State St, Los Angeles, CA 90033",
+      latitude: latitude + 0.007,
+      longitude: longitude - 0.005,
+      distance: 1.2
+    },
+    {
+      name: "Cedars-Sinai Medical Center",
+      address: "8700 Beverly Blvd, Los Angeles, CA 90048",
+      latitude: latitude - 0.003,
+      longitude: longitude + 0.009,
+      distance: 1.8
+    },
+    {
+      name: "UCLA Medical Center",
+      address: "757 Westwood Plaza, Los Angeles, CA 90095",
+      latitude: latitude + 0.011,
+      longitude: longitude + 0.003,
+      distance: 2.3
+    },
+    {
+      name: "Good Samaritan Hospital",
+      address: "1225 Wilshire Blvd, Los Angeles, CA 90017", 
+      latitude: latitude - 0.006,
+      longitude: longitude - 0.008,
+      distance: 2.7
+    },
+    {
+      name: "Kaiser Permanente Los Angeles",
+      address: "4867 Sunset Blvd, Los Angeles, CA 90027",
+      latitude: latitude + 0.016,
+      longitude: longitude - 0.012,
+      distance: 3.1
+    }
+  ].slice(0, maxResults);
+}
+
 // Add DAIN tool: get-alert-call-history
 const getAlertCallHistoryConfig: ToolConfig = {
   id: "get-alert-call-history",
@@ -987,6 +1028,160 @@ const getPatientsOutsideSafeZonesConfig: ToolConfig = {
   }
 };
 
+const findNearestHospitalsConfig: ToolConfig = {
+  id: "find-nearest-hospitals",
+  name: "Find Nearest Hospitals",
+  description: "Finds the closest hospitals to a patient's current location using Melissa API",
+  input: z.object({
+    patientId: z.string().describe("Patient ID"),
+    maxResults: z.number().optional().default(5)
+  }),
+  output: z.object({
+    hospitals: z.array(z.object({
+      name: z.string(),
+      address: z.string(),
+      latitude: z.number(),
+      longitude: z.number(),
+      distance: z.number()
+    }))
+  }),
+  handler: async ({ patientId, maxResults }, agentInfo, context) => {
+    // 1. Get patient location
+    const location = patientLocations.get(patientId);
+    if (!location) {
+      return {
+        text: "No location data for this patient.",
+        data: { hospitals: [] },
+        ui: new CardUIBuilder()
+          .setRenderMode("page")
+          .title("No Location Data")
+          .content("No location data for this patient.")
+          .build()
+      };
+    }
+
+    // 2. Call Melissa API
+    const MELISSA_API_KEY = process.env.MELISSA_API_KEY;
+    const MELISSA_HEALTHCARE_ENDPOINT = "https://reversegeo.melissadata.net/v3/web/ReverseGeoCode/doLookup";
+
+    let hospitals = [];
+    console.log("\n🏥 Calling Melissa API with:", {
+      key: MELISSA_API_KEY ? "Set" : "Not Set",
+      lat: location.latitude,
+      lon: location.longitude,
+      MaxDistance: 10,
+      MaxRecords: maxResults * 3 // Get more records to filter
+    });
+
+    try {
+      console.log("MELISSA_HEALTHCARE_ENDPOINT", MELISSA_HEALTHCARE_ENDPOINT);
+      console.log("MELISSA_API_KEY", MELISSA_API_KEY);
+      const response = await axios.get(MELISSA_HEALTHCARE_ENDPOINT, {
+        params: {
+          id: MELISSA_API_KEY,
+          lat: location.latitude,
+          lon: location.longitude,
+          MaxDistance: 10, // 10 miles radius
+          MaxRecords: maxResults * 3, // Get more records to filter
+          Format: "JSON"
+        }
+      });
+
+      console.log("\n📊 Melissa API Response:", {
+        Version: response.data.Version,
+        TransmissionResults: response.data.TransmissionResults,
+        TotalRecords: response.data.TotalRecords
+      });
+
+      // Check for transmission results
+      if (response.data.TransmissionResults !== "GE04") {
+        console.error("❌ Melissa API Error:", response.data.TransmissionResults);
+        
+        return {
+          text: `Error from Melissa API: ${response.data.TransmissionResults}`,
+          data: { hospitals: [] },
+          ui: new CardUIBuilder()
+            .setRenderMode("page")
+            .title("Melissa API Error")
+            .content(`Error: ${response.data.TransmissionResults}`)
+            .build()
+        };
+      }
+
+      // Parse response to extract address info
+      const records = response.data.Records;
+      if (Array.isArray(records) && records.length > 0) {
+        // Filter for hospitals and medical facilities
+        const medicalKeywords = [
+          'hospital', 'medical', 'clinic', 'health', 'care', 'center',
+          'emergency', 'urgent', 'doctor', 'physician', 'practice',
+          'surgery', 'treatment', 'rehabilitation', 'therapy'
+        ];
+
+        const filteredRecords = records.filter(r => {
+          const addressText = `${r.AddressLine1} ${r.City} ${r.State}`.toLowerCase();
+          return medicalKeywords.some(keyword => addressText.includes(keyword));
+        });
+
+        console.log(`\n🔍 Filtering results:`);
+        console.log(`   Total addresses: ${records.length}`);
+        console.log(`   Medical facilities found: ${filteredRecords.length}`);
+
+        hospitals = filteredRecords
+          .slice(0, maxResults) // Take only the requested number of results
+          .map(r => ({
+            name: r.AddressLine1,
+            address: `${r.AddressLine1}, ${r.City}, ${r.State} ${r.PostalCode}`,
+            latitude: r.Latitude,
+            longitude: r.Longitude,
+            distance: r.Distance // in miles
+          }));
+
+        console.log(`\n✅ Found ${hospitals.length} medical facilities`);
+      } else {
+        console.log("\nℹ️ No locations found within search radius");
+        hospitals = [];
+      }
+    } catch (e) {
+      console.error("\n❌ Melissa API error:", e);
+      return {
+        text: "Error fetching locations from Melissa API.",
+        data: { hospitals: [] },
+        ui: new CardUIBuilder()
+          .setRenderMode("page")
+          .title("Melissa API Error")
+          .content(`Error: ${e.message}`)
+          .build()
+      };
+    }
+
+    return {
+      text: `Found ${hospitals.length} medical facilities near patient ${patientId}`,
+      data: { hospitals },
+      ui: new MapUIBuilder()
+        .setInitialView(location.latitude, location.longitude, 12)
+        .addMarkers([
+          {
+            latitude: location.latitude,
+            longitude: location.longitude,
+            title: `Patient ${patientId}`,
+            description: "Patient Location",
+            text: "🧑‍⚕️"
+          },
+          ...hospitals.map(h => ({
+            latitude: h.latitude,
+            longitude: h.longitude,
+            title: h.name,
+            description: h.address,
+            text: "🏥"
+          }))
+        ])
+        .setRenderMode("inline")
+        .build()
+    };
+  }
+};
+
 const healthcareService = defineDAINService({
   metadata: {
     title: "Healthcare Monitoring DAIN Service",
@@ -1033,7 +1228,8 @@ const healthcareService = defineDAINService({
     getPatientLocationConfig,
     phoneCallConfig,
     getAlertCallHistoryConfig,
-    getPatientsOutsideSafeZonesConfig
+    getPatientsOutsideSafeZonesConfig,
+    findNearestHospitalsConfig
   ],
 });
 

@@ -13,6 +13,7 @@ load_dotenv()
 # Get healthcare service URL from environment or use default
 HEALTHCARE_SERVICE_URL = os.getenv('HEALTHCARE_SERVICE_URL', 'http://localhost:3000')
 PATIENT_PHONE_NUMBER = os.getenv('PATIENT_PHONE_NUMBER', '+16693407283')
+MOBILE_ALERT_API_URL = os.getenv('MOBILE_ALERT_API_URL', 'https://28ad-164-67-70-232.ngrok-free.app/api/alerts')
 
 # Create the notification agent
 notification_agent = Agent(
@@ -21,6 +22,17 @@ notification_agent = Agent(
     port=8004,
     endpoint="http://127.0.0.1:8004"
 )
+
+# Function to send alert to mobile app notification API
+def send_alert_to_mobile_api(alert_data):
+    try:
+        response = requests.post(MOBILE_ALERT_API_URL, json=alert_data)
+        if response.status_code == 200:
+            print(f"[NotificationAgent] Successfully sent alert to mobile API: {response.json()}")
+        else:
+            print(f"[NotificationAgent] Failed to send alert to mobile API: {response.status_code} {response.text}")
+    except Exception as e:
+        print(f"[NotificationAgent] Error sending alert to mobile API: {e}")
 
 @notification_agent.on_message(model=AlertMessage)
 async def handle_alert(ctx: Context, sender: str, msg: AlertMessage):
@@ -43,9 +55,18 @@ async def handle_alert(ctx: Context, sender: str, msg: AlertMessage):
     
     print(f"[NotificationAgent] Alert log: {json.dumps(alert_log, indent=2)}")
     
-    # For high priority alerts, make a phone call
+    # For high priority alerts, make a phone call and send to mobile API
     if msg.priority == "high":
-        print(f"[NotificationAgent] High priority alert detected, initiating phone call...")
+        print(f"[NotificationAgent] High priority alert detected, initiating phone call and sending to mobile app...")
+        
+        # Send alert to mobile app notification API
+        mobile_alert_payload = {
+            "patient_id": msg.patient_id,
+            "type": msg.priority,
+            "title": msg.message,
+            "description": msg.message
+        }
+        send_alert_to_mobile_api(mobile_alert_payload)
         
         try:
             # Forward to healthcare service for Twilio integration
