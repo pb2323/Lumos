@@ -186,7 +186,7 @@ const AddPersonScreen = ({ navigation }) => {
             </View>
             
             <Text style={styles.photoHelp}>
-              Adding a photo helpsf the system recognize this person.
+              Adding a photo helps the system recognize this person.
             </Text>
           </View>
           
