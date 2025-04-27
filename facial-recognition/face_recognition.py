@@ -51,6 +51,7 @@ PROJECT_DIR = os.path.expanduser('~/family_recognition')
 WATCH_DIR = "/tmp/lumosprofiles"
 UPLOAD_DIR = "/tmp/lumosinput"
 PROFILE_IMAGES_DIR = os.path.join(PROJECT_DIR, "profile_images")
+BASE64_IMAGES_DIR = os.path.join(PROJECT_DIR, "base64_images")  # New directory for base64 images
 
 # Create necessary directories
 os.makedirs(PROJECT_DIR, exist_ok=True)
@@ -59,6 +60,7 @@ os.makedirs(os.path.join(PROJECT_DIR, "temp"), exist_ok=True)
 os.makedirs(WATCH_DIR, exist_ok=True)
 os.makedirs(PROFILE_IMAGES_DIR, exist_ok=True)
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(BASE64_IMAGES_DIR, exist_ok=True)  # Create base64 images directory
 
 # Define the FamilyRecognitionSystem class
 # ---------------------------------------
@@ -518,6 +520,19 @@ def identify_face_endpoint():
             return jsonify({'error': 'No base64 image provided'}), 400
         
         base64_image = request.json['image']
+        print(f"Received base64 image: {base64_image}")
+        
+        # Save base64 image to JSON file with timestamp
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        json_filename = f"base64_image_{timestamp}.json"
+        json_filepath = os.path.join(BASE64_IMAGES_DIR, json_filename)
+        
+        with open(json_filepath, 'w') as f:
+            json.dump({
+                'timestamp': timestamp,
+                'base64_image': base64_image
+            }, f, indent=2)
+        logger.info(f"Saved base64 image to JSON file: {json_filepath}")
         
         # Save the image
         try:
@@ -551,6 +566,48 @@ def identify_face_endpoint():
                 'message': 'No matching face found',
                 'confidence': float(confidence)
             })
+            
+    except Exception as e:
+        logger.error(f"Error processing request: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/save-profile-image', methods=['POST'])
+def save_profile_image():
+    """Save base64 image with family member name."""
+    try:
+        # Check if required fields are present
+        if not request.json or 'image' not in request.json or 'name' not in request.json:
+            return jsonify({'error': 'Missing required fields: image and name'}), 400
+        
+        base64_image = request.json['image']
+        family_member_name = request.json['name']
+        
+        # Save the first image
+        try:
+            filepath1 = save_base64_image(base64_image)
+            # Create destination paths
+            dest_path1 = os.path.join(WATCH_DIR, f"{family_member_name}_1.jpeg")
+            dest_path2 = os.path.join(WATCH_DIR, f"{family_member_name}_2.jpeg")
+            
+            # Copy the file to both destinations
+            shutil.copy2(filepath1, dest_path1)
+            shutil.copy2(filepath1, dest_path2)
+            
+            # Clean up the temporary file
+            os.remove(filepath1)
+            
+            logger.info(f"Saved profile images for {family_member_name} at:")
+            logger.info(f"- {dest_path1}")
+            logger.info(f"- {dest_path2}")
+            
+            return jsonify({
+                'success': True,
+                'message': f'Successfully saved profile images for {family_member_name}',
+                'paths': [dest_path1, dest_path2]
+            })
+            
+        except Exception as e:
+            return jsonify({'error': f'Error processing image: {str(e)}'}), 400
             
     except Exception as e:
         logger.error(f"Error processing request: {e}")
