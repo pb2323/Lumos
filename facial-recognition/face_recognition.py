@@ -520,7 +520,7 @@ def identify_face_endpoint():
             return jsonify({'error': 'No base64 image provided'}), 400
         
         base64_image = request.json['image']
-        print(f"Received base64 image: {base64_image}")
+        # print(f"Received base64 image: {base64_image}")
         
         # Save base64 image to JSON file with timestamp
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -555,12 +555,14 @@ def identify_face_endpoint():
         
         # Return results
         if name:
+            print(f"Identified as: {name} (confidence: {confidence:.2f})")
             return jsonify({
                 'success': True,
                 'name': name,
                 'confidence': float(confidence)
             })
         else:
+            print(f"No matching face found (confidence: {confidence:.2f})")
             return jsonify({
                 'success': False,
                 'message': 'No matching face found',
@@ -613,6 +615,11 @@ def save_profile_image():
         logger.error(f"Error processing request: {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/camera')
+def camera_page():
+    """Serve the camera page."""
+    return app.send_static_file('camera.html')
+
 def main():
     """Main function for interactive mode."""
     print("Family Face Recognition System")
@@ -622,6 +629,15 @@ def main():
     GOOGLE_API_KEY = "AIzaSyDqM0NX29baB35wtCLZI9aTNYZ3v-kyCjo"  # Replace with your actual API key
     global face_system, agent
     face_system, agent = init_system(GOOGLE_API_KEY)
+    
+    # Create static directory if it doesn't exist
+    static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
+    os.makedirs(static_dir, exist_ok=True)
+    
+    # Move camera.html to static directory
+    camera_html_path = os.path.join(static_dir, 'camera.html')
+    if not os.path.exists(camera_html_path):
+        shutil.copy2('camera.html', camera_html_path)
     
     # Interactive menu
     while True:
