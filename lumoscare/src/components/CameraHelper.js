@@ -1,32 +1,72 @@
 // src/components/CameraHelper.js
 
 import React, { useState, useRef, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text, Platform, Alert } from 'react-native';
-import { Camera } from 'expo-camera';
-import * as ImageManipulator from 'expo-image-manipulator';
+import { View, StyleSheet, TouchableOpacity, Text, Platform, Alert, Image } from 'react-native';
 import { IconButton } from 'react-native-paper';
 import { theme } from '../utils/theme';
 
+// Try importing in a different way
+let Camera;
+try {
+  Camera = require('expo-camera').Camera;
+  console.log('Camera imported successfully:', Camera);
+  console.log('Camera.Constants:', Camera.Constants);
+} catch (error) {
+  console.error('Error importing Camera:', error);
+}
+
+// Import ImageManipulator separately to avoid issues if Camera fails
+import * as ImageManipulator from 'expo-image-manipulator';
+
 const CameraHelper = ({ onCapture, onCancel, mode = 'capture' }) => {
   const [hasPermission, setHasPermission] = useState(null);
-  const [type, setType] = useState(Camera.Constants.Type.front);
-  const [flash, setFlash] = useState(Camera.Constants.FlashMode.off);
+  const [cameraType, setCameraType] = useState(null);
+  const [flashMode, setFlashMode] = useState(null);
+  const [cameraError, setCameraError] = useState(null);
   const cameraRef = useRef(null);
 
-  // Request camera permission on mount
+  // Request camera permission and initialize camera constants on mount
   useEffect(() => {
-    (async () => {
-      const { status } = await Camera.requestCameraPermissionsAsync();
-      setHasPermission(status === 'granted');
-      
-      if (status !== 'granted') {
-        Alert.alert(
-          'Camera Permission Required',
-          'This feature requires camera access to function properly.',
-          [{ text: 'OK' }]
-        );
+    const initializeCamera = async () => {
+      try {
+        // Ensure Camera is properly loaded
+        if (!Camera) {
+          setCameraError('Camera component could not be loaded');
+          return;
+        }
+        
+        // Check if Camera.Constants exists
+        if (!Camera.Constants) {
+          setCameraError('Camera.Constants is undefined. The Camera component may not be properly initialized.');
+          console.error('Camera.Constants is undefined:', Camera);
+          return;
+        }
+
+        // Set the camera type and flash mode once Camera is confirmed available
+        console.log('Setting camera type and flash mode');
+        setCameraType(Camera.Constants.Type.front);
+        setFlashMode(Camera.Constants.FlashMode.off);
+
+        // Request permissions
+        console.log('Requesting camera permissions');
+        const { status } = await Camera.requestCameraPermissionsAsync();
+        console.log('Permission status:', status);
+        setHasPermission(status === 'granted');
+        
+        if (status !== 'granted') {
+          Alert.alert(
+            'Camera Permission Required',
+            'This feature requires camera access to function properly.',
+            [{ text: 'OK' }]
+          );
+        }
+      } catch (error) {
+        console.error('Error initializing camera:', error);
+        setCameraError(`Error initializing camera: ${error.message}`);
       }
-    })();
+    };
+
+    initializeCamera();
   }, []);
 
   // Handle taking a photo
@@ -48,8 +88,8 @@ const CameraHelper = ({ onCapture, onCancel, mode = 'capture' }) => {
         
         // Convert to base64 if needed for face recognition
         if (mode === 'faceRecognition') {
-          const base64Image = await convertToBase64(processedImage.uri);
-          onCapture({ uri: processedImage.uri, base64: base64Image });
+          // For demo purposes, just return the processed image
+          onCapture({ uri: processedImage.uri, base64: 'base64encodedface...' });
         } else {
           onCapture(processedImage);
         }
@@ -60,22 +100,12 @@ const CameraHelper = ({ onCapture, onCancel, mode = 'capture' }) => {
     }
   };
 
-  // Convert image URI to base64
-  const convertToBase64 = async (uri) => {
-    try {
-      // In a real app, you would implement base64 conversion here
-      // For demo purposes, we'll just return a placeholder
-      return 'base64encodedface...';
-    } catch (error) {
-      console.error('Error converting image to base64:', error);
-      return null;
-    }
-  };
-
   // Toggle camera type (front/back)
   const toggleCameraType = () => {
-    setType(
-      type === Camera.Constants.Type.back
+    if (!Camera || !Camera.Constants) return;
+    
+    setCameraType(
+      cameraType === Camera.Constants.Type.back
         ? Camera.Constants.Type.front
         : Camera.Constants.Type.back
     );
@@ -83,39 +113,75 @@ const CameraHelper = ({ onCapture, onCancel, mode = 'capture' }) => {
 
   // Toggle flash mode
   const toggleFlash = () => {
-    setFlash(
-      flash === Camera.Constants.FlashMode.off
+    if (!Camera || !Camera.Constants) return;
+    
+    setFlashMode(
+      flashMode === Camera.Constants.FlashMode.off
         ? Camera.Constants.FlashMode.on
         : Camera.Constants.FlashMode.off
     );
   };
 
-  // Handle permission denied
-  if (hasPermission === null) {
-    return <View style={styles.container} />;
-  }
-  
-  if (hasPermission === false) {
+  // Handle camera error or loading state
+  if (cameraError || !Camera || !Camera.Constants) {
     return (
-      <View style={styles.noPermission}>
-        <Text style={styles.noPermissionText}>No access to camera</Text>
+      <View style={[styles.container, styles.centerContent]}>
+        <Text style={styles.errorText}>
+          {cameraError || 'Camera is not available on this device'}
+        </Text>
+        <Text style={styles.errorSubText}>
+          Please make sure the camera module is properly installed.
+        </Text>
         <TouchableOpacity 
           style={styles.cancelButton} 
           onPress={onCancel}
         >
-          <Text style={styles.cancelButtonText}>Cancel</Text>
+          <Text style={styles.cancelButtonText}>Go Back</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
+  // Check if camera is ready to use
+  const isCameraReady = hasPermission && cameraType !== null && flashMode !== null;
+
+  // Handle loading or permission denied
+  if (!isCameraReady) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        {hasPermission === false ? (
+          <>
+            <Text style={styles.noPermissionText}>No access to camera</Text>
+            <TouchableOpacity 
+              style={styles.cancelButton} 
+              onPress={onCancel}
+            >
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            <Text style={styles.loadingText}>Initializing camera...</Text>
+            <TouchableOpacity 
+              style={styles.cancelButton} 
+              onPress={onCancel}
+            >
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
+    );
+  }
+
+  // Camera is fully initialized and ready
   return (
     <View style={styles.container}>
       <Camera
         ref={cameraRef}
         style={styles.camera}
-        type={type}
-        flashMode={flash}
+        type={cameraType}
+        flashMode={flashMode}
         ratio="16:9"
       >
         <View style={styles.controlsContainer}>
@@ -145,7 +211,7 @@ const CameraHelper = ({ onCapture, onCancel, mode = 'capture' }) => {
           </View>
           
           <IconButton
-            icon={flash === Camera.Constants.FlashMode.off ? "flash-off" : "flash"}
+            icon={flashMode === Camera.Constants.FlashMode.off ? "flash-off" : "flash"}
             size={24}
             color="#fff"
             onPress={toggleFlash}
@@ -166,6 +232,12 @@ const CameraHelper = ({ onCapture, onCancel, mode = 'capture' }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#000',
+  },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.colors.background,
   },
   camera: {
     flex: 1,
@@ -205,16 +277,29 @@ const styles = StyleSheet.create({
     right: 20,
     backgroundColor: 'rgba(0, 0, 0, 0.3)',
   },
-  noPermission: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: theme.colors.background,
-  },
   noPermissionText: {
     color: theme.colors.text,
     fontSize: 18,
     marginBottom: 20,
+  },
+  loadingText: {
+    color: theme.colors.text,
+    fontSize: 18,
+    marginBottom: 20,
+  },
+  errorText: {
+    color: theme.colors.error,
+    fontSize: 18,
+    marginBottom: 12,
+    textAlign: 'center',
+    paddingHorizontal: 20,
+  },
+  errorSubText: {
+    color: theme.colors.textSecondary,
+    fontSize: 16,
+    marginBottom: 20,
+    textAlign: 'center',
+    paddingHorizontal: 20,
   },
   cancelButton: {
     padding: 15,

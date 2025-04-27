@@ -1,12 +1,11 @@
 // src/screens/AddPersonScreen.js
 
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Modal } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, Image } from 'react-native';
 import { TextInput, Button, Text, Surface, IconButton, HelperText } from 'react-native-paper';
 import * as ImagePicker from 'expo-image-picker';
 import { usePeople } from '../context/PeopleContext';
 import { theme } from '../utils/theme';
-import CameraHelper from '../components/CameraHelper';
 
 const AddPersonScreen = ({ navigation }) => {
   const { addPerson, loading } = usePeople();
@@ -15,43 +14,62 @@ const AddPersonScreen = ({ navigation }) => {
   const [notes, setNotes] = useState('');
   const [photo, setPhoto] = useState(null);
   const [errors, setErrors] = useState({});
-  const [showCamera, setShowCamera] = useState(false);
+  
+  // Take a photo with the camera
+  const takePhoto = async () => {
+    try {
+      // Request camera permissions
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Camera access is required to take a photo');
+        return;
+      }
+      
+      // Launch camera
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.5,
+      });
+      
+      // Handle result
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setPhoto(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Error taking photo:', error);
+      Alert.alert('Error', 'Failed to take photo. Please try again or select from gallery.');
+    }
+  };
   
   // Pick an image from the gallery
   const pickImage = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    
-    if (status !== 'granted') {
-      Alert.alert('Permission Denied', 'Sorry, we need camera roll permissions to make this work!');
-      return;
+    try {
+      // Request media library permissions
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Photo library access is required to select a photo');
+        return;
+      }
+      
+      // Launch image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.5,
+      });
+      
+      // Handle result
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setPhoto(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to select image');
     }
-    
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.5,
-    });
-    
-    if (!result.canceled) {
-      setPhoto(result.assets[0].uri);
-    }
-  };
-  
-  // Show camera for taking a photo
-  const openCamera = () => {
-    setShowCamera(true);
-  };
-  
-  // Handle photo captured from camera
-  const handleCapturedPhoto = (photoData) => {
-    setPhoto(photoData.uri);
-    setShowCamera(false);
-  };
-  
-  // Close camera without taking photo
-  const handleCloseCamera = () => {
-    setShowCamera(false);
   };
   
   // Validate form
@@ -129,7 +147,7 @@ const AddPersonScreen = ({ navigation }) => {
               <Button
                 mode="contained"
                 icon="camera"
-                onPress={openCamera}
+                onPress={takePhoto}
                 style={[styles.photoButton, styles.cameraButton]}
                 labelStyle={styles.buttonLabel}
               >
@@ -156,7 +174,6 @@ const AddPersonScreen = ({ navigation }) => {
             value={name}
             onChangeText={setName}
             style={styles.input}
-            textColor='#FFFFFF'
             theme={{ colors: { primary: theme.colors.primary } }}
             error={!!errors.name}
           />
@@ -171,7 +188,6 @@ const AddPersonScreen = ({ navigation }) => {
             value={relationship}
             onChangeText={setRelationship}
             style={styles.input}
-            textColor='#FFFFFF'
             theme={{ colors: { primary: theme.colors.primary } }}
             error={!!errors.relationship}
           />
@@ -188,7 +204,6 @@ const AddPersonScreen = ({ navigation }) => {
             multiline
             numberOfLines={4}
             style={styles.input}
-            textColor='#FFFFFF'
             theme={{ colors: { primary: theme.colors.primary } }}
           />
           
@@ -203,19 +218,6 @@ const AddPersonScreen = ({ navigation }) => {
           </Button>
         </Surface>
       </ScrollView>
-      
-      {/* Camera Modal */}
-      <Modal
-        visible={showCamera}
-        animationType="slide"
-        onRequestClose={handleCloseCamera}
-      >
-        <CameraHelper
-          onCapture={handleCapturedPhoto}
-          onCancel={handleCloseCamera}
-          mode="faceRecognition"
-        />
-      </Modal>
     </View>
   );
 };
