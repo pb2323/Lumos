@@ -1,58 +1,102 @@
-# LUMOS - Intelligent Caregiving Platform
+# LumosCare - Memory Assistance System
 
-Lumos is a comprehensive caregiving platform that integrates facial recognition, location tracking, and notification systems to provide advanced care for family members, particularly seniors or individuals who need monitoring.
+**Tagline**: *Bringing light back to fading memories*
+
+---
 
 ## Project Overview
 
-Lumos consists of several integrated components:
+**LumosCare** is an AI-powered memory assistance platform designed to support individuals with Alzheimer's and memory-related conditions. By combining **Snapchat Spectacles**, **autonomous agents**, **AR overlays**, and **location tracking**, LumosCare offers real-time memory cues and enhances safety while respecting privacy.
 
-1. **Facial Recognition System** - Identifies family members and caregivers
-2. **Backend API Server** - Manages data and coordinates services
-3. **Mobile Application (LumosCare)** - User interface for family and caregivers
-4. **Intelligent Agents** - Autonomous services for location tracking and notifications
-5. **Healthcare Model** - AI models for healthcare insights
+It passively recognizes faces and surroundings, provides contextual reminders, alerts caregivers if patients wander outside safe zones, and preserves important daily reflections — promoting independence and improving quality of life.
 
-## Components
+---
 
-### Facial Recognition
+## Core Components
 
-A Python-based system that:
-- Creates profiles for family members using facial embeddings
-- Identifies individuals in real-time through camera feeds
-- Integrates with LangChain for conversational AI capabilities
-- Securely stores profile data and facial recognition logs
+### 1. **AR Experience (Patient Side)**
 
-**Tech Stack**: Python, DeepFace, LangChain, Google Vertex AI
+- Built on **Snapchat Lens Studio** / **Snapchat Spectacles**
+- Real-time **face recognition** and **location tracking**
+- **AR overlays** for memory cues (names, relationships, reminders)
+- **Voice journaling** powered by Gemini AI
+- **Offline support** through local caching
 
-### Backend Server
+**Tech Stack**: Lens Studio, TensorFlow.js, Three.js, JavaScript, TypeScript
 
-A Node.js REST API server that:
-- Authenticates users and manages permissions
-- Stores and retrieves recognition events, alerts, and logs
-- Manages safe zones and location tracking
-- Coordinates with external services and agents
+---
 
-**Tech Stack**: Node.js, Express, MongoDB, JWT, WebSockets
+### 2. **AI and Intelligent Agent System**
 
-### Mobile Application (LumosCare)
+- **Fetch.ai uAgents** for autonomy and coordination
+- **Gemini 2.5 API** for memory prompts, decision-making, and voice journaling
+- Specialized Agents:
+  - **Face Recognition Agent**: Identifies faces using stored profiles
+  - **Safety Agent**: Monitors GPS location and triggers alerts
+  - **Notification Agent**: Manages communication with caregivers
+  - **Healthcare Agent (DAIN)**: Provides healthcare insights and response orchestration
 
-A cross-platform mobile app built with Expo that:
-- Provides a user-friendly interface for family members and caregivers
-- Displays alerts, recognition events, and location information
-- Allows management of user profiles and safe zones
-- Sends notifications for important events
+**Tech Stack**: Python, Universal Agent Framework (Fetch.ai), Google Gemini 2.5
 
-**Tech Stack**: React Native, Expo, TypeScript
+---
 
-### Intelligent Agents
+### 3. **Backend Infrastructure**
 
-Autonomous services that:
-- Track location and detect anomalies
-- Send notifications for alerts
-- Make automated phone calls when necessary
-- Follow predefined protocols for different scenarios
+- **Node.js + Express** API server
+- **MongoDB Atlas** for data storage
+- **Cloudflare Workers** for serverless processing
+- **Firebase Authentication** for user management
+- **WebSockets** for real-time updates
 
-**Tech Stack**: Python, Universal Agent Framework
+**Data Structures**:
+- User profiles
+- Recognized people profiles
+- Safe zones and geofences
+- Journals and memory logs
+
+**Tech Stack**: Node.js, Express, MongoDB Atlas, Cloudflare Workers, Firebase
+
+---
+
+### 4. **Mobile Application - LumosCare (Caretaker App)**
+
+- **React Native** app for caregivers
+- Manage patient profiles, safe zones, and reminders
+- View memory journal summaries
+- Receive safety alerts in real-time
+- Natural language queries to interact with agents
+
+**Tech Stack**: React Native, Expo, TypeScript, Redux, React Navigation
+
+---
+
+## Key Features
+
+- **Face Recognition and Memory Overlay**: Displays names, relationships, and memory cues when familiar faces are detected.
+- **Contextual Reminders**: Non-intrusive time- and location-based prompts for medication, appointments, and daily activities.
+- **Safe Zone Monitoring**: Alerts triggered if the patient exits predefined safe zones using Melissa APIs.
+- **Voice Journaling**: Daily reflections captured through voice and summarized using Gemini AI.
+- **Caregiver Connectivity**: Secure dashboard to manage profiles, monitor activities, and receive alerts.
+
+---
+
+## System Architecture
+
+The LumosCare system follows a distributed, modular architecture:
+
+1. **AR Wearable** (Spectacles): Captures real-time data
+2. **Face Recognition Agent**: Identifies faces and context
+3. **Safety Agent**: Monitors GPS coordinates
+4. **Notification Agent**: Sends alerts and updates
+5. **Healthcare Agent**: Provides decision-making support
+6. **Backend**: Manages profiles, safe zones, and alerts
+7. **Caretaker Mobile App**: User interface for caregivers
+
+### Visual Diagrams
+- **High-Level Architecture Diagram** ![Architecture Diagram](path-to-diagram)
+- **Use Case Diagram** ![Use Case Diagram](path-to-diagram)
+
+---
 
 ## Installation and Setup
 
@@ -60,8 +104,9 @@ Autonomous services that:
 
 - Node.js v14 or higher
 - Python 3.7 or higher
-- MongoDB instance
-- Google API key for LangChain integration
+- MongoDB Atlas cluster
+- Google API key for Gemini access
+- Firebase Project (for Authentication)
 
 ### Backend Setup
 
@@ -87,20 +132,34 @@ npm install
 npx expo start
 ```
 
-## Architecture
+---
 
-The Lumos platform uses a distributed architecture with several services communicating via APIs:
+## Privacy and Ethical Considerations
 
-1. The facial recognition system processes camera feeds and identifies individuals
-2. The backend server stores recognition events and coordinates responses
-3. Intelligent agents monitor conditions and trigger notifications
-4. The mobile app provides a user interface for monitoring and configuration
+- **Closed Ecosystem**: Only registered family members are recognized.
+- **Consent-Based Model**: Recognition requires explicit consent.
+- **On-Device Processing**: Sensitive data stays local when possible.
+- **Dignified Experience**: Designed to assist, not surveil.
+
+---
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+We welcome contributions to improve LumosCare further.  
+Please open an Issue or submit a Pull Request!
+
+---
 
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
+
+---
+
+## Future Roadmap
+
+- **Medication Verification**
+- **Behavior Prediction Models**
+- **Integration with Healthcare Providers**
+- **Expanded Device Support (Other AR glasses)**
 
