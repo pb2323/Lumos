@@ -13,7 +13,7 @@ const {
 router.post(
   '/',
   [
-    verifyGoogleToken,
+    // verifyGoogleToken,
     checkUserExists,
     [
       check('patientId', 'Patient ID is required').not().isEmpty(),
@@ -29,7 +29,9 @@ router.post(
 // GET /api/alerts/patient/:patientId
 router.get(
     '/patient/:patientId',
-    [verifyGoogleToken, checkUserExists],
+    [
+        // verifyGoogleToken, 
+        checkUserExists],
     getAlerts
   );
   
@@ -38,7 +40,7 @@ router.get(
   router.put(
     '/:id/status',
     [
-      verifyGoogleToken,
+    //   verifyGoogleToken,
       checkUserExists,
       [
         check('status', 'Status is required').not().isEmpty(),

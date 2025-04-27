@@ -14,7 +14,7 @@ const {
 router.post(
   '/',
   [
-    verifyGoogleToken,
+    // verifyGoogleToken,
     checkUserExists,
     requireCaregiver,
     [
@@ -31,7 +31,9 @@ router.post(
 // GET /api/faces/patient/:patientId
 router.get(
   '/patient/:patientId',
-  [verifyGoogleToken, checkUserExists],
+  [
+    // verifyGoogleToken, 
+    checkUserExists],
   getRecognizedPersons
 );
 
@@ -40,7 +42,7 @@ router.get(
 router.put(
   '/:id',
   [
-    verifyGoogleToken,
+    // verifyGoogleToken,
     checkUserExists,
     requireCaregiver,
     [
@@ -55,7 +57,9 @@ router.put(
 // DELETE /api/faces/:id
 router.delete(
   '/:id',
-  [verifyGoogleToken, checkUserExists, requireCaregiver],
+  [
+    // verifyGoogleToken, 
+    checkUserExists, requireCaregiver],
   deleteRecognizedPerson
 );
 

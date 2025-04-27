@@ -13,7 +13,7 @@ const {
 router.post(
   '/',
   [
-    verifyGoogleToken,
+    // verifyGoogleToken,
     checkUserExists,
     [
       check('patientId', 'Patient ID is required').not().isEmpty(),
@@ -29,7 +29,9 @@ router.post(
 // GET /api/memory-logs/patient/:patientId
 router.get(
   '/patient/:patientId',
-  [verifyGoogleToken, checkUserExists],
+  [
+    // verifyGoogleToken, 
+    checkUserExists],
   getMemoryLogs
 );
 
@@ -37,7 +39,9 @@ router.get(
 // GET /api/memory-logs/person/:personId
 router.get(
   '/person/:personId',
-  [verifyGoogleToken, checkUserExists],
+  [
+    // verifyGoogleToken, 
+    checkUserExists],
   getPersonMemoryLogs
 );
 
