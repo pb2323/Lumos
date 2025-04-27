@@ -30,6 +30,24 @@ interface PatientLocation {
 
 const patientLocations = new Map<string, PatientLocation>();
 
+// In-memory logs for alerts and calls
+const alertHistory: Array<{
+  patientId: string;
+  message: string;
+  priority: string;
+  timestamp: string;
+}> = [];
+
+const callHistory: Array<{
+  patientId: string;
+  phoneNumber: string;
+  message: string;
+  priority: string;
+  callStatus: string;
+  callId: string;
+  timestamp: string;
+}> = [];
+
 // Clear stored data on startup
 console.log("\n🧹 Clearing stored data...");
 patientLocations.clear();
@@ -91,6 +109,13 @@ app.post('/api/location-update', (req, res) => {
     // Store result or perform actions based on location status
     if (result.data.status === "unsafe") {
       console.log(`\n⚠️ ALERT: Patient ${patientId} is outside safe zones!`);
+      // Log alert
+      alertHistory.push({
+        patientId,
+        message: `Patient is outside safe zones at (${latitude}, ${longitude})`,
+        priority: "high",
+        timestamp: new Date().toISOString()
+      });
       // Here you could trigger notifications or other actions
     }
   }).catch(error => {
@@ -360,6 +385,7 @@ const getHealthMetricsConfig: ToolConfig = {
           new CardUIBuilder()
             .title(`Health Metrics for Patient ${patientId} ${statusEmoji}`)
             .content("Last 24 hours of measurements")
+            .setRenderMode("inline")
             .build()
         )
         .addChild(
@@ -390,8 +416,10 @@ const getHealthMetricsConfig: ToolConfig = {
                 oxygenSaturation: Math.round(oxygenSaturation[i]),
               }))
             )
+            .setRenderMode("inline")
             .build()
         )
+        .setRenderMode("inline")
         .build(),
     };
   },
@@ -427,7 +455,7 @@ const getPatientLocationConfig: ToolConfig = {
           timestamp: new Date().toISOString()
         },
         ui: new CardUIBuilder()
-          .setRenderMode("page")
+          .setRenderMode("inline")
           .title(`Location for Patient ${patientId}`)
           .content("No location data available")
           .build()
@@ -550,6 +578,17 @@ const phoneCallConfig: ToolConfig = {
         statusCallbackMethod: 'POST'
       });
 
+      // Log call
+      callHistory.push({
+        patientId,
+        phoneNumber,
+        message,
+        priority,
+        callStatus: call.status,
+        callId: call.sid,
+        timestamp: new Date().toISOString()
+      });
+
       console.log(`   ✅ Call initiated successfully`);
       console.log(`   Call ID: ${call.sid}`);
       console.log(`   Call Status: ${call.status}`);
@@ -576,6 +615,7 @@ const phoneCallConfig: ToolConfig = {
             `Call Status: ${call.status}\n` +
             `Call Direction: ${call.direction}`
           )
+          .setRenderMode("inline")
           .build()
       };
     } catch (error) {
@@ -606,6 +646,7 @@ const phoneCallConfig: ToolConfig = {
             `Error Code: ${error.code}\n` +
             `Error Status: ${error.status}`
           )
+          .setRenderMode("inline")
           .build()
       };
     }
@@ -660,10 +701,16 @@ app.post('/api/make-call', async (req, res) => {
     
     const call = await twilioClient.calls.create(callConfig);
 
-    console.log(`   ✅ Call initiated successfully`);
-    console.log(`   Call ID: ${call.sid}`);
-    console.log(`   Call Status: ${call.status}`);
-    console.log(`   Call Direction: ${call.direction}`);
+    // Log call
+    callHistory.push({
+      patientId,
+      phoneNumber,
+      message,
+      priority,
+      callStatus: call.status,
+      callId: call.sid,
+      timestamp: new Date().toISOString()
+    });
     
     // For high priority calls, wait for initial status
     if (priority === 'high') {
@@ -799,6 +846,147 @@ function calculateDistance(
   return distance;
 }
 
+// Add DAIN tool: get-alert-call-history
+const getAlertCallHistoryConfig: ToolConfig = {
+  id: "get-alert-call-history",
+  name: "Get Alert/Call History",
+  description: "Shows all alerts and phone calls for a patient",
+  input: z.object({ patientId: z.string() }),
+  output: z.object({
+    alerts: z.array(z.object({
+      message: z.string(),
+      priority: z.string(),
+      timestamp: z.string()
+    })),
+    calls: z.array(z.object({
+      phoneNumber: z.string(),
+      message: z.string(),
+      priority: z.string(),
+      callStatus: z.string(),
+      callId: z.string(),
+      timestamp: z.string()
+    }))
+  }),
+  handler: async ({ patientId }, agentInfo, context) => {
+    const alerts = alertHistory.filter(a => a.patientId === patientId);
+    const calls = callHistory.filter(c => c.patientId === patientId);
+
+    return {
+      text: `Alert and call history for patient ${patientId}`,
+      data: { alerts, calls },
+      ui: new LayoutUIBuilder()
+        .setRenderMode("page")
+        .setLayoutType("column")
+        .addChild(
+          new CardUIBuilder()
+            .title(`Alerts for ${patientId}`)
+            .content(alerts.length === 0 ? "No alerts." : "")
+            .setRenderMode("inline")
+            .build()
+        )
+        .addChild(
+          new TableUIBuilder()
+            .addColumns([
+              { key: "timestamp", header: "Time", type: "string" },
+              { key: "message", header: "Message", type: "string" },
+              { key: "priority", header: "Priority", type: "string" }
+            ])
+            .rows(alerts.map(a => ({
+              timestamp: new Date(a.timestamp).toLocaleString(),
+              message: a.message,
+              priority: a.priority
+            })))
+            .setRenderMode("inline")
+            .build()
+        )
+        .addChild(
+          new CardUIBuilder()
+            .title(`Calls for ${patientId}`)
+            .content(calls.length === 0 ? "No calls." : "")
+            .build()
+        )
+        .addChild(
+          new TableUIBuilder()
+            .addColumns([
+              { key: "timestamp", header: "Time", type: "string" },
+              { key: "phoneNumber", header: "Phone", type: "string" },
+              { key: "message", header: "Message", type: "string" },
+              { key: "priority", header: "Priority", type: "string" },
+              { key: "callStatus", header: "Status", type: "string" }
+            ])
+            .rows(calls.map(c => ({
+              timestamp: new Date(c.timestamp).toLocaleString(),
+              phoneNumber: c.phoneNumber,
+              message: c.message,
+              priority: c.priority,
+              callStatus: c.callStatus
+            })))
+            .setRenderMode("inline")
+            .build()
+        )
+        .setRenderMode("inline")
+        .build()
+    };
+  }
+};
+
+// Add DAIN tool: get-patients-outside-safe-zones
+const getPatientsOutsideSafeZonesConfig: ToolConfig = {
+  id: "get-patients-outside-safe-zones",
+  name: "Get Patients Outside Safe Zones",
+  description: "Lists all patients currently outside their safe zones",
+  input: z.object({}),
+  output: z.array(z.object({
+    patientId: z.string(),
+    latitude: z.number(),
+    longitude: z.number(),
+    timestamp: z.string()
+  })),
+  handler: async (_, agentInfo, context) => {
+    const outOfZone: Array<{ patientId: string, latitude: number, longitude: number, timestamp: string }> = [];
+    for (const [patientId, location] of patientLocations.entries()) {
+      // Use the same logic as checkLocationStatusConfig
+      const distances = safeZones.map((zone) => {
+        const distance = calculateDistance(
+          location.latitude,
+          location.longitude,
+          zone.center.latitude,
+          zone.center.longitude
+        );
+        return distance <= zone.radius;
+      });
+      const isSafe = distances.some(Boolean);
+      if (!isSafe) {
+        outOfZone.push({
+          patientId,
+          latitude: location.latitude,
+          longitude: location.longitude,
+          timestamp: location.timestamp
+        });
+      }
+    }
+    return {
+      text: `Patients currently outside safe zones: ${outOfZone.length}`,
+      data: outOfZone,
+      ui: new TableUIBuilder()
+        .addColumns([
+          { key: "patientId", header: "Patient ID", type: "string" },
+          { key: "latitude", header: "Latitude", type: "number" },
+          { key: "longitude", header: "Longitude", type: "number" },
+          { key: "timestamp", header: "Last Updated", type: "string" }
+        ])
+        .rows(outOfZone.map(p => ({
+          patientId: p.patientId,
+          latitude: p.latitude,
+          longitude: p.longitude,
+          timestamp: new Date(p.timestamp).toLocaleString()
+        })))
+        .setRenderMode("inline")
+        .build()
+    };
+  }
+};
+
 const healthcareService = defineDAINService({
   metadata: {
     title: "Healthcare Monitoring DAIN Service",
@@ -839,7 +1027,14 @@ const healthcareService = defineDAINService({
   identity: {
     apiKey: process.env.DAIN_API_KEY
   },
-  tools: [checkLocationStatusConfig, getHealthMetricsConfig, getPatientLocationConfig, phoneCallConfig],
+  tools: [
+    checkLocationStatusConfig,
+    getHealthMetricsConfig,
+    getPatientLocationConfig,
+    phoneCallConfig,
+    getAlertCallHistoryConfig,
+    getPatientsOutsideSafeZonesConfig
+  ],
 });
 
 // Add error handling for service startup
