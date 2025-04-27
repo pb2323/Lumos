@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, ActivityIndicator, Text } from 'react-native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { theme } from '../utils/theme';
@@ -12,7 +12,9 @@ import AddPersonScreen from '../screens/AddPersonScreen';
 import PersonDetailScreen from '../screens/PersonDetailScreen';
 import AddSafeZoneScreen from '../screens/AddSafeZoneScreen';
 import SafeZoneDetailScreen from '../screens/SafeZoneDetailScreen';
-import { NetInfoProvider, useNetInfo } from '@react-native-community/netinfo';
+import { useNetInfo } from '@react-native-community/netinfo';
+import { Linking } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 
 // Custom network status component
 const NetworkStatus = () => {
@@ -40,6 +42,29 @@ const Stack = createStackNavigator();
 // Navigation container that depends on authentication state
 const NavigationContents = () => {
   const { user, loading } = useAuth();
+  const navigation = useNavigation();
+
+
+  useEffect(() => {
+    const handleDeepLink = (event) => {
+      const url = event.url;
+      console.log('Received deep link:', url);
+      
+      // Here you can parse tokens or navigate
+      if (url.includes('redirect')) {
+        console.log('Redirect success!');
+        navigation.navigate('Main');
+      }
+    };
+
+    // Listen to incoming links
+    const subscription = Linking.addEventListener('url', handleDeepLink);
+
+    return (() => {
+      subscription.remove();
+
+    })
+  }, []);
   
   if (loading) {
     return (
@@ -115,11 +140,9 @@ const NavigationContents = () => {
 // Wrap the navigation with the auth provider
 const AppNavigator = () => {
   return (
-    <NetInfoProvider>
       <AuthProvider>
         <NavigationContents />
       </AuthProvider>
-    </NetInfoProvider>
   );
 };
 

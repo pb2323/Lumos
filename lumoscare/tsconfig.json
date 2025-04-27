@@ -11,5 +11,5 @@
   "include": [
     "**/*.ts",
     "**/*.tsx"
-  ]
+, "App.js", "src/navigation/AppNavigator.js", "src/utils/GoogleAuth.js"  ]
 }

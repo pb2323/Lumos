@@ -2,7 +2,7 @@
 
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
-import * as Random from 'expo-random';
+import { getRandomBytesAsync } from 'expo-crypto';
 import { Platform } from 'react-native';
 import AuthService from '../services/AuthService';
 
@@ -64,13 +64,14 @@ class GoogleAuth {
       // Fallback to direct Expo Auth Session if backend integration is unavailable
       else {
         // Generate a random state parameter
-        const bytes = await Random.getRandomBytesAsync(16);
+        const bytes = await getRandomBytesAsync(16);
         const state = Array.from(bytes)
           .map(byte => byte.toString(16).padStart(2, '0'))
           .join('');
         
         // Create the auth request
         const request = new AuthSession.AuthRequest({
+          redirectUri: "app://Main",
           clientId: this.getClientId(),
           scopes: ['profile', 'email'],
           state,
