@@ -15,19 +15,19 @@ test_agent = Agent(
 # Test cases
 test_calls = [
     {
-        "patient_id": "test_patient_1",
+        "patient_id": "Robin",
         "phone_number": "+16693407283",
         "message": "Emergency: You have left your safe zone!",
         "priority": "high"
     },
     {
-        "patient_id": "test_patient_2",
+        "patient_id": "Andrew",
         "phone_number": "+16693407283",
         "message": "Time for your daily wellness check",
         "priority": "medium"
     },
     {
-        "patient_id": "test_patient_3",
+        "patient_id": "John",
         "phone_number": "+16693407283",
         "message": "Don't forget to take your medication",
         "priority": "low"

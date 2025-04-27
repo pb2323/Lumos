@@ -74,6 +74,24 @@ def is_within_safe_zones(latitude, longitude):
     
     return False, None
 
+# Add this function to trigger a phone call via the healthcare service
+def trigger_phone_call(patient_id, phone_number, message, priority="high"):
+    url = f"{HEALTHCARE_SERVICE_URL}/api/make-call"
+    payload = {
+        "patientId": patient_id,
+        "phoneNumber": phone_number,
+        "message": message,
+        "priority": priority
+    }
+    try:
+        response = requests.post(url, json=payload)
+        if response.status_code == 200:
+            print(f"[LocationAgent] Phone call triggered successfully: {response.json()}")
+        else:
+            print(f"[LocationAgent] Failed to trigger phone call: {response.status_code} {response.text}")
+    except Exception as e:
+        print(f"[LocationAgent] Error triggering phone call: {e}")
+
 @location_agent.on_message(model=LocationUpdateMessage)
 async def handle_location_update(ctx: Context, sender: str, msg: LocationUpdateMessage):
     print(f"\n[LocationAgent] Protocol received message from {sender}")
@@ -146,6 +164,11 @@ async def handle_location_update(ctx: Context, sender: str, msg: LocationUpdateM
             alert
         )
         print(f"[LocationAgent] 🚀 Sent alert to NotificationAgent!")
+
+        # Trigger phone call to caregiver (replace with actual phone number or make configurable)
+        phone_number = "+16693407283"  # TODO: Replace with actual caregiver/patient number or make configurable
+        message = f"ALERT: Patient {patient_id} has left all safe zones. Current location: {latitude}, {longitude}"
+        trigger_phone_call(patient_id, phone_number, message, priority="high")
 
 # Register the protocol
 location_agent.include(location_protocol)

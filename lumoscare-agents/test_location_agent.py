@@ -14,9 +14,9 @@ test_agent = Agent(
 
 # Steps to simulate
 steps = [
-    {"latitude": 34.0522, "longitude": -118.2437, "patient_id": "test_patient_121"},
-    {"latitude": 34.0611, "longitude": -118.2503, "patient_id": "test_patient_122"},
-    {"latitude": 34.0531, "longitude": -118.2445, "patient_id": "test_patient_123"},
+    {"latitude": 34.0522, "longitude": -118.2437, "patient_id": "Robin"},
+    {"latitude": 34.0611, "longitude": -118.2503, "patient_id": "Andrew"},
+    {"latitude": 34.0531, "longitude": -118.2445, "patient_id": "John"},
     # {"latitude": 34.0550, "longitude": -118.2460, "patient_id": "test_patient_123"},
 ]
 

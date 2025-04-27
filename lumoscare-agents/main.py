@@ -18,7 +18,7 @@ bureau.add(location_agent)
 bureau.add(test_agent)
 bureau.add(notification_agent)
 bureau.add(phone_call_agent)
-bureau.add(phone_test_agent)
+# bureau.add(phone_test_agent)
 
 if __name__ == "__main__":
     print("[Main] Starting all agents...")
